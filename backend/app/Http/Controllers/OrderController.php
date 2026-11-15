@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Order;
 use App\Services\OrderPricing;
+use App\Services\SalonLayout;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -13,6 +14,8 @@ use Illuminate\Validation\Rule;
 
 class OrderController extends Controller
 {
+    public function __construct(private readonly SalonLayout $salonLayout) {}
+
     public function catalog(): array
     {
         $items = DB::table('menu_products')->orderBy('sort_order')->get()->map(fn ($item) => [
@@ -47,7 +50,7 @@ class OrderController extends Controller
         $data = $request->validate([
             ...($editing ? ['expectedRevision' => 'required|integer|min:0'] : ['requestId' => 'required|uuid']),
             'expectedTotalCents' => 'required|integer|min:0',
-            'customer' => 'required|array:name,phone,method,payment,address,reference'.($staff ? ',tableLabel' : ''),
+            'customer' => 'required|array:name,phone,method,payment,address,reference'.($staff ? ',tableLabel,tableId' : ''),
             'customer.name' => ($staff ? 'nullable|required_unless:customer.method,table' : 'required').'|string|min:2|max:120',
             'customer.phone' => [
                 ...($staff ? ['nullable', 'required_if:customer.method,delivery'] : ['required']),
@@ -56,6 +59,7 @@ class OrderController extends Controller
             'customer.method' => ['required', Rule::in(['pickup', 'delivery', 'table'])],
             'customer.payment' => [$staff ? 'nullable' : 'required', Rule::in(['yape', 'cash'])],
             'customer.tableLabel' => $staff ? 'exclude_unless:customer.method,table|required|string|max:40' : 'prohibited',
+            'customer.tableId' => $staff ? 'exclude_unless:customer.method,table|nullable|uuid' : 'prohibited',
             'customer.address' => 'nullable|string|max:240|required_if:customer.method,delivery|min:6',
             'customer.reference' => 'nullable|string|max:160',
             'items' => 'required|array|min:1|max:100',
@@ -101,6 +105,7 @@ class OrderController extends Controller
             trim($customer['name'] ?? ''), $customer['phone'] ?? '', $customer['method'], $customer['payment'] ?? null,
             trim($customer['address'] ?? ''), trim($customer['reference'] ?? ''), $lines, $data['expectedTotalCents'],
             ...($staff ? ['staff', $customer['tableLabel'] ?? null] : []),
+            ...(! empty($customer['tableId']) ? [$customer['tableId']] : []),
         ], JSON_THROW_ON_ERROR));
 
         $order = DB::transaction(function () use ($request, $data, $customer, $lines, $hash, $pricing, $staff) {
@@ -117,6 +122,9 @@ class OrderController extends Controller
             }
             $amounts = $pricing->calculate($lines, $customer['method']);
             abort_unless($amounts['total_cents'] === (int) $data['expectedTotalCents'], 409, 'Los precios cambiaron. Revisa el total actualizado y vuelve a confirmar.');
+            if ($staff) {
+                $customer = $this->salonLayout->resolveTable($customer);
+            }
             $order = Order::create([
                 ...$amounts, 'request_id' => $data['requestId'], 'tracking_id' => (string) Str::uuid(), 'request_hash' => $hash,
                 ...$this->customerAttributes($customer), 'source' => $staff ? 'staff' : 'web',
@@ -133,12 +141,13 @@ class OrderController extends Controller
     {
         $data = $this->validateDraft($request, true, true);
         $saved = DB::transaction(function () use ($request, $order, $pricing, $data) {
+            $customer = $this->salonLayout->resolveTable($data['customer']);
             $current = Order::lockForUpdate()->findOrFail($order->id);
             abort_unless($current->status === 'pending', 409, 'Solo se pueden editar pedidos pendientes.');
             abort_unless((int) $current->revision === (int) $data['expectedRevision'], 409, 'Otra persona editó este pedido. Cierra el formulario y abre la versión actualizada.');
             $amounts = $pricing->calculate($data['items'], $data['customer']['method'], $current->items);
             abort_unless($amounts['total_cents'] === (int) $data['expectedTotalCents'], 409, 'Los precios cambiaron. Revisa el total actualizado.');
-            $current->update([...$amounts, ...$this->customerAttributes($data['customer']), 'revision' => $current->revision + 1]);
+            $current->update([...$amounts, ...$this->customerAttributes($customer), 'revision' => $current->revision + 1]);
             $current->events()->create(['status' => 'pending', 'user_id' => $request->user()->id, 'reason' => 'Edición del pedido']);
 
             return $current;

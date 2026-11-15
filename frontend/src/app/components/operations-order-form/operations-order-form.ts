@@ -25,6 +25,7 @@ interface DraftLine {
 export class OperationsOrderForm implements OnInit, AfterViewInit {
   readonly order = input.required<StaffOrder | null>();
   readonly initialTable = input<string | null>(null);
+  readonly initialTableId = input<string | null>(null);
   readonly initialMethod = input<StaffOrder['method']>('table');
   readonly saved = output<StaffOrder>();
   readonly closed = output<void>();
@@ -264,8 +265,12 @@ export class OperationsOrderForm implements OnInit, AfterViewInit {
   }
 
   private buildDraft(): StaffOrderDraft {
+    const tableId = this.initialTableId();
     return {
-      customer: { ...this.customer },
+      customer: {
+        ...this.customer,
+        ...(this.customer.method === 'table' && this.customer.tableLabel === this.initialTable() && tableId ? { tableId } : {}),
+      },
       items: this.lines.map(({ productId, quantity, notes, modifiers }) => ({
         productId, quantity, notes, modifiers: this.lineModifiers({ modifiers }),
       })),

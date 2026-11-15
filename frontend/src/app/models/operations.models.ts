@@ -51,6 +51,7 @@ export interface StaffOrderDraft {
     method: OrderReceipt['method'];
     payment: OrderReceipt['payment'];
     tableLabel: string;
+    tableId?: string;
     address: string;
     reference: string;
   };
@@ -61,6 +62,16 @@ export interface StaffOrderDraft {
 export interface OrderModifier {
   id: number;
   name: string;
+}
+
+export interface SalonTable {
+  id: string;
+  label: string;
+}
+
+export interface SalonLayout {
+  revision: number;
+  zones: { id: string; name: string; tables: SalonTable[] }[];
 }
 
 export function staffOrderMethod(order: StaffOrder): string {

@@ -13,6 +13,7 @@ import {
   StaffOrder,
   StaffOrderDraft,
   StaffRole,
+  SalonLayout,
   StaffUser,
 } from '../models/operations.models';
 
@@ -139,6 +140,14 @@ export class LocalOperationsApi {
 
   orderModifiers(): Promise<{ modifiers: OrderModifier[] }> {
     return this.request('/order-modifiers');
+  }
+
+  salonLayout(): Promise<SalonLayout> {
+    return this.request('/salon-layout');
+  }
+
+  saveSalonLayout(layout: SalonLayout): Promise<SalonLayout> {
+    return this.request('/salon-layout', 'PUT', layout);
   }
 
   createOrderModifier(name: string): Promise<{ modifiers: OrderModifier[] }> {

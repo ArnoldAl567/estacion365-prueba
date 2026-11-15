@@ -205,6 +205,7 @@
           <app-operations-order-form
             [order]="draft === 'new' ? null : draft"
             [initialTable]="editorTable()"
+            [initialTableId]="editorTableId()"
             [initialMethod]="view() === 'salon' ? 'table' : 'pickup'"
             (saved)="orderSaved($event)"
             (closed)="editor.set(null)"
@@ -213,9 +214,10 @@
 
         @if (view() === 'salon') {
           <app-operations-salon [orders]="orders()" [online]="online()"
-            (newOrder)="openEditor('new', $event)"
+            (newOrder)="openEditor('new', $event.label, $event.id)"
             (orderDetails)="openDetails($event)"
             (editOrder)="openEditor($event)"
+            (layoutSaved)="salonLayoutSaved()"
           />
         }
 

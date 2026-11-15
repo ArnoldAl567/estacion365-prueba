@@ -4,6 +4,7 @@ use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\DemandReportController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrderModifierController;
+use App\Http\Controllers\SalonLayoutController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\StaffController;
 use Illuminate\Support\Facades\Route;
@@ -26,6 +27,8 @@ Route::prefix('local-api')->group(function () {
         Route::patch('/orders/{order}', [OrderController::class, 'update'])->whereNumber('order');
     });
     Route::middleware('staff:admin')->group(function () {
+        Route::get('/salon-layout', [SalonLayoutController::class, 'show']);
+        Route::put('/salon-layout', [SalonLayoutController::class, 'update']);
         Route::post('/staff-orders', [OrderController::class, 'storeFromStaff']);
         Route::patch('/staff-orders/{order}', [OrderController::class, 'editFromStaff'])->whereNumber('order');
         Route::get('/order-modifiers', [OrderModifierController::class, 'index']);

@@ -68,6 +68,7 @@ button {
   cursor: pointer;
 }
 button:focus-visible { outline: 2px solid #246b52; outline-offset: 2px; }
+button:disabled { opacity: .6; cursor: default; }
 .order-link { display: inline-flex; flex-wrap: wrap; gap: .35rem; align-items: center; padding: 0 .3rem; }
 .order-link:hover, .edit-link:hover { text-decoration: underline; }
 .order-link span { padding: .18rem .35rem; border-radius: .35rem; background: #f8e4bc; color: #6a4312; }
@@ -76,6 +77,55 @@ button:focus-visible { outline: 2px solid #246b52; outline-offset: 2px; }
 .table-action { min-height: 44px; margin-top: auto; border-color: #aac9b7; background: white; }
 .table-action:hover:not(:disabled) { border-color: #267249; }
 .table-action:disabled { cursor: default; opacity: .6; }
+.salon-tools { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; justify-content: flex-end; }
+.salon-tools p { margin-right: auto; }
+.configure-button, .save-layout {
+  min-height: 44px;
+  padding-inline: .9rem;
+  border-color: #aac9b7;
+  color: #205938;
+  background: #fff;
+}
+.save-layout { background: #267249; color: white; border-color: #267249; }
+.layout-editor {
+  padding: clamp(.9rem, 3vw, 1.5rem);
+  border: 1px solid #cbded1;
+  border-radius: .9rem;
+  background: #fff;
+}
+.layout-fields { display: grid; gap: 1rem; min-width: 0; border: 0; padding: 0; margin: 0; }
+.layout-fields > button { justify-self: start; }
+.zone-editor {
+  display: grid;
+  gap: .8rem;
+  padding: .9rem;
+  border: 1px solid #d5e4d9;
+  border-radius: .65rem;
+  background: #f7faf7;
+}
+.zone-editor > button { justify-self: start; }
+.zone-fields, .table-editor {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  align-items: end;
+}
+.zone-fields > label, .table-editor > label { flex: 1 1 8rem; }
+.table-editor-grid { display: grid; gap: .65rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 235px), 1fr)); }
+.layout-editor label { display: grid; gap: .3rem; font-size: .8rem; font-weight: 700; }
+.layout-editor input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: .5rem .65rem;
+  border: 1px solid #aac9b7;
+  border-radius: .45rem;
+  font: inherit;
+  font-size: 1rem;
+}
+.remove-option { min-height: 44px; color: #8c2b25; }
+.layout-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .6rem; margin-top: 1rem; }
+.layout-error { margin-top: 1rem; padding: .6rem; border-radius: .4rem; color: #8c2b25; background: #fff0ee; }
 
 @media (min-width: 1100px) {
   .table-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }

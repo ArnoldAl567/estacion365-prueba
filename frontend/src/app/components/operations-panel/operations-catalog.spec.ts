@@ -6,6 +6,7 @@ import { DEFAULT_DAILY_PRICES } from '../../models/catalog.models';
 import { CatalogApiService } from '../../services/catalog-api.service';
 import { LocalOperationsApi } from '../../services/local-operations-api.service';
 import { AdminPanel } from '../admin-panel/admin-panel';
+import { OperationsSalon } from '../operations-salon/operations-salon';
 import { OperationsPanel } from './operations-panel';
 
 describe('Local operations panel', () => {
@@ -48,6 +49,14 @@ describe('Local operations panel', () => {
       }),
       updateCatalogItem: jasmine.createSpy().and.callFake(async (item) => item),
       orderModifiers: jasmine.createSpy().and.resolveTo({ modifiers: [] }),
+      salonLayout: jasmine.createSpy().and.resolveTo({
+        revision: 0,
+        zones: [
+          { id: 'salon-a', name: 'Salón A', tables: [{ id: 'table-1', label: 'M1' }, { id: 'table-3', label: 'M3' }] },
+          { id: 'salon-b', name: 'Salón B', tables: [{ id: 'table-4', label: 'M4' }] },
+        ],
+      }),
+      saveSalonLayout: jasmine.createSpy().and.callFake(async (layout) => ({ ...layout, revision: 1 })),
     };
     const neon = jasmine.createSpyObj('Neon', ['restoreAdminSession', 'loadItems', 'updateItem']);
     TestBed.configureTestingModule({
@@ -67,11 +76,13 @@ describe('Local operations panel', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
 
     const panel = fixture.componentInstance;
     const root: HTMLElement = fixture.nativeElement;
     expect(window.location.hash).toBe('#salon');
-    expect(root.querySelectorAll('.salon-table').length).toBe(15);
+    expect(root.querySelectorAll('.salon-table').length).toBe(3);
     panel.orders.set([{
       id: 17, number: '0017', status: 'pending', method: 'table', tableLabel: '1',
       customerName: '', customerPhone: '', payment: null, address: null, reference: null,
@@ -84,6 +95,34 @@ describe('Local operations panel', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     expect(root.querySelector<HTMLInputElement>('dialog input[name="table"]')?.value).toBe('M3');
+    fixture.destroy();
+  });
+
+  it('adds a zone and table to the saved layout used by the board', async () => {
+    const { local } = configure('admin');
+    window.history.replaceState(null, '', '/administrar#salon');
+    const fixture = TestBed.createComponent(OperationsPanel);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const salon = fixture.debugElement.query(By.directive(OperationsSalon)).componentInstance as OperationsSalon;
+    salon.startEditing();
+    const draft = salon.draft()!;
+    salon.addZone(draft);
+    const zone = draft.zones[draft.zones.length - 1];
+    zone.name = 'Terraza';
+    salon.addTable(draft, zone);
+    zone.tables[0].label = 'Ventana';
+    await salon.saveLayout(draft);
+    fixture.detectChanges();
+
+    expect(local.saveSalonLayout).toHaveBeenCalledWith(jasmine.objectContaining({ revision: 0 }));
+    const root: HTMLElement = fixture.nativeElement;
+    expect(root.querySelector('[aria-label="Terraza"] h3')?.textContent).toBe('Ventana');
+    expect(root.querySelector('.layout-editor')).toBeNull();
     fixture.destroy();
   });
 

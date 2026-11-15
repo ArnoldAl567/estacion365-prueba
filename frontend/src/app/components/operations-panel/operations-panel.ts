@@ -91,6 +91,7 @@ export class OperationsPanel implements OnInit, OnDestroy {
   readonly selected = signal<StaffOrder | null>(null);
   readonly editor = signal<StaffOrder | 'new' | null>(null);
   readonly editorTable = signal<string | null>(null);
+  readonly editorTableId = signal<string | null>(null);
   readonly includeSalon = signal(false);
   readonly staffOrderMethod = staffOrderMethod;
   readonly staffOrderPayment = staffOrderPayment;
@@ -404,14 +405,19 @@ export class OperationsPanel implements OnInit, OnDestroy {
   statusLabel(status: OrderStatus): string {
     return this.statuses.find((option) => option.id === status)?.label ?? status;
   }
-  openEditor(order: StaffOrder | 'new', table: string | null = null): void {
+  openEditor(order: StaffOrder | 'new', table: string | null = null, tableId: string | null = null): void {
     this.editorTable.set(table);
+    this.editorTableId.set(tableId);
     this.editor.set(order);
   }
 
   async orderSaved(order: StaffOrder): Promise<void> {
     this.editor.set(null);
     this.showNotice('Pedido #' + order.number + ' guardado.');
+    await this.refresh();
+  }
+  async salonLayoutSaved(): Promise<void> {
+    this.showNotice('Plano del salón guardado.');
     await this.refresh();
   }
   nextAction(order: StaffOrder): string {

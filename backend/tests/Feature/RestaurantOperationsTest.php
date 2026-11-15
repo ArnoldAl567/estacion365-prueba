@@ -220,6 +220,36 @@ class RestaurantOperationsTest extends TestCase
         $this->patchJson($path, $payload)->assertConflict();
     }
 
+    public function test_salon_configuration_renames_active_tables_and_protects_occupied_tables(): void
+    {
+        $this->getJson('/local-api/salon-layout')->assertUnauthorized();
+        $this->actingAs($this->staff('kitchen'))->getJson('/local-api/salon-layout')->assertForbidden();
+        $this->actingAs($this->staff());
+        $initial = $this->getJson('/local-api/salon-layout')->assertOk()->assertJsonCount(2, 'zones')->json();
+        $order = $this->payload();
+        $order['expectedTotalCents'] = 4500;
+        $order['customer'] = ['method' => 'table', 'tableLabel' => '1'];
+        $id = $this->postJson('/local-api/staff-orders', $order)->assertCreated()->json('order.id');
+
+        $config = $initial;
+        $config['zones'][0]['name'] = 'Terraza';
+        $config['zones'][0]['tables'][0]['label'] = 'Ventana 1';
+        $config['zones'][] = ['id' => (string) Str::uuid(), 'name' => 'Patio', 'tables' => []];
+        $this->putJson('/local-api/salon-layout', $config)->assertOk()
+            ->assertJsonPath('revision', 1)->assertJsonPath('zones.0.name', 'Terraza')->assertJsonCount(3, 'zones');
+        $this->getJson('/local-api/orders/'.$id)->assertJsonPath('order.tableLabel', 'Ventana 1')
+            ->assertJsonPath('order.revision', 1);
+        $this->putJson('/local-api/salon-layout', $initial)->assertConflict();
+
+        $order['requestId'] = (string) Str::uuid();
+        $order['customer']['tableId'] = $initial['zones'][0]['tables'][0]['id'];
+        $this->postJson('/local-api/staff-orders', $order)->assertCreated()->assertJsonPath('order.tableLabel', 'Ventana 1');
+        $config['revision'] = 1;
+        array_shift($config['zones'][0]['tables']);
+        $this->putJson('/local-api/salon-layout', $config)->assertConflict();
+        $this->getJson('/local-api/salon-layout')->assertJsonPath('zones.0.tables.0.label', 'Ventana 1');
+    }
+
     public function test_initial_admin_setup_only_runs_once_and_user_access_can_be_revoked(): void
     {
         $setup = ['name' => 'Propietario', 'username' => 'Estacion365', 'password' => 'Prueba-local-365!', 'password_confirmation' => 'Prueba-local-365!'];
