@@ -189,15 +189,22 @@
         }
 
         @if (view() === 'orders') {
+          @if (isAdmin() && editor(); as draft) {
+            <app-operations-order-form
+              [order]="draft === 'new' ? null : draft"
+              (saved)="orderSaved($event)"
+              (closed)="editor.set(null)"
+            />
+          }
           <section class="ops-card orders-card">
             <div class="card-title">
               <div>
                 <h2>La atención de hoy</h2>
                 <p>{{ orders().length }} pedidos en curso</p>
               </div>
-              <button class="text-button" type="button" (click)="selectView('kitchen')">
-                Ver cocina <span>↗</span>
-              </button>
+              @if (isAdmin() && !editor()) {
+                <button class="ops-primary" type="button" (click)="openEditor('new')">+ Nuevo pedido</button>
+              }
             </div>
             <div class="order-filters">
               <nav aria-label="Filtrar pedidos por estado">
@@ -224,8 +231,8 @@
                   <path d="m15 15 5 5" /></svg
                 ><input
                   type="search"
-                  placeholder="Buscar pedido o cliente"
-                  aria-label="Buscar pedido o cliente"
+                  placeholder="Buscar pedido, cliente o mesa"
+                  aria-label="Buscar pedido, cliente o mesa"
                   [ngModel]="search()"
                   (ngModelChange)="search.set($event)"
               /></label>
@@ -252,12 +259,12 @@
                         ><small>{{ quantity(order) }} unidades</small>
                       </td>
                       <td data-label="Cliente">
-                        <strong>{{ order.customerName }}</strong
+                        <strong>{{ order.customerName || 'Sin nombre' }}</strong
                         ><small>{{ order.customerPhone }}</small>
                       </td>
                       <td data-label="Modalidad">
                         <span class="method-tag" [class.delivery]="order.method === 'delivery'">{{
-                          methodLabel(order.method)
+                          staffOrderMethod(order)
                         }}</span>
                       </td>
                       <td data-label="Recibido">
@@ -271,7 +278,7 @@
                           order.totalCents / 100
                             | currency: 'PEN' : 'symbol-narrow' : '1.2-2' : 'es-PE'
                         }}</strong
-                        ><small>{{ order.payment === 'yape' ? 'Yape' : 'Efectivo' }}</small>
+                        ><small>{{ staffOrderPayment(order) }}</small>
                       </td>
                       <td data-label="Estado">
                         <span [class]="'status-badge ' + order.status"
@@ -286,6 +293,10 @@
                         >
                           Ver detalle <span>→</span>
                         </button>
+                        @if (isAdmin() && order.status === 'pending' && !editor()) {
+                          <button class="detail-button" type="button" (click)="openEditor(order)"
+                            [attr.aria-label]="'Editar pedido ' + order.number">Editar</button>
+                        }
                       </td>
                     </tr>
                   }
@@ -388,13 +399,13 @@
                         </button>
                       </td>
                       <td data-label="Cliente">
-                        <strong>{{ order.customerName }}</strong
+                        <strong>{{ order.customerName || 'Sin nombre' }}</strong
                         ><small>{{ order.customerPhone }}</small>
                       </td>
                       <td data-label="Fecha">
                         {{ order.createdAt | date: 'dd/MM/yyyy HH:mm' : '-0500' }}
                       </td>
-                      <td data-label="Modalidad">{{ methodLabel(order.method) }}</td>
+                      <td data-label="Modalidad">{{ staffOrderMethod(order) }}</td>
                       <td data-label="Importe">
                         <strong>{{
                           order.totalCents / 100

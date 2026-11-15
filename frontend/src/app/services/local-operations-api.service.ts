@@ -7,9 +7,11 @@ import {
   isActiveOrderStatus,
   OrderFeed,
   OrderHistory,
+  OrderModifier,
   OrderReceipt,
   OrderStatus,
   StaffOrder,
+  StaffOrderDraft,
   StaffRole,
   StaffUser,
 } from '../models/operations.models';
@@ -120,7 +122,31 @@ export class LocalOperationsApi {
     return this.request(`/orders/${id}`);
   }
   changeStatus(order: StaffOrder, status: OrderStatus, reason?: string): Promise<{ order: StaffOrder }> {
-    return this.request(`/orders/${order.id}`, 'PATCH', { status, expectedStatus: order.status, reason });
+    return this.request(`/orders/${order.id}`, 'PATCH', {
+      status, expectedStatus: order.status, expectedRevision: order.revision, reason,
+    });
+  }
+
+  saveStaffOrder(
+    draft: StaffOrderDraft,
+    order: StaffOrder | null,
+    requestId: string,
+  ): Promise<{ order: StaffOrder }> {
+    return order
+      ? this.request(`/staff-orders/${order.id}`, 'PATCH', { ...draft, expectedRevision: order.revision })
+      : this.request('/staff-orders', 'POST', { ...draft, requestId });
+  }
+
+  orderModifiers(): Promise<{ modifiers: OrderModifier[] }> {
+    return this.request('/order-modifiers');
+  }
+
+  createOrderModifier(name: string): Promise<{ modifiers: OrderModifier[] }> {
+    return this.request('/order-modifiers', 'POST', { name });
+  }
+
+  async deleteOrderModifier(id: number): Promise<void> {
+    await this.request(`/order-modifiers/${id}`, 'DELETE');
   }
   users(): Promise<{ users: StaffUser[] }> {
     return this.request('/users');
@@ -219,7 +245,7 @@ export class LocalOperationsApi {
         signal: controller.signal,
         headers: {
           Accept: 'application/json',
-          ...(body === undefined ? {} : { 'X-CSRF-TOKEN': this.csrfToken }),
+          ...(method === 'GET' ? {} : { 'X-CSRF-TOKEN': this.csrfToken }),
           ...(body === undefined || body instanceof FormData
             ? {}
             : { 'Content-Type': 'application/json' }),
@@ -232,6 +258,7 @@ export class LocalOperationsApi {
         await this.bootstrap();
         return this.request(path, method, body, false);
       }
+      if (response.status === 204) return undefined as T;
       if (!(response.headers.get('Content-Type') ?? '').includes('application/json')) {
         throw new OperationsError('El servidor de pedidos no respondió. Inténtalo de nuevo en un momento.', response.status);
       }

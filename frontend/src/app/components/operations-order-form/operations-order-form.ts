@@ -1,0 +1,233 @@
+import { Component, computed, inject, input, OnInit, output, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { CATEGORIES, DAILY_ADDON_CATEGORIES } from '../../data/menu.data';
+import { CatalogItem, DailyPrices, DEFAULT_DAILY_PRICES } from '../../models/catalog.models';
+import { OrderModifier, StaffOrder, StaffOrderDraft } from '../../models/operations.models';
+import { LocalOperationsApi } from '../../services/local-operations-api.service';
+
+interface DraftLine {
+  key: number;
+  productId: string;
+  name: string;
+  categoryId: string;
+  unitPriceCents: number;
+  quantity: number;
+  notes: string;
+  modifiers: string;
+}
+
+@Component({
+  selector: 'app-operations-order-form',
+  imports: [FormsModule],
+  templateUrl: './operations-order-form.html',
+  styleUrl: './operations-order-form.scss',
+})
+export class OperationsOrderForm implements OnInit {
+  readonly order = input.required<StaffOrder | null>();
+  readonly saved = output<StaffOrder>();
+  readonly closed = output<void>();
+  readonly categories = [...CATEGORIES, ...DAILY_ADDON_CATEGORIES];
+  readonly menuTypes = [
+    { id: 'economico' as const, label: 'Económico' },
+    { id: 'ejecutivo' as const, label: 'Ejecutivo' },
+  ];
+  readonly loading = signal(true);
+  readonly loaded = signal(false);
+  readonly saving = signal(false);
+  readonly error = signal('');
+  readonly modifierError = signal('');
+  readonly changingModifiers = signal(false);
+  readonly modifiers = signal<OrderModifier[]>([]);
+  newModifier = '';
+  readonly catalog = signal<CatalogItem[]>([]);
+  readonly prices = signal<DailyPrices>(DEFAULT_DAILY_PRICES);
+  readonly category = signal('');
+  readonly query = signal('');
+  readonly matches = computed(() => {
+    const query = this.searchText(this.query());
+    const category = this.category();
+    return this.catalog().filter((item) =>
+      (category === 'menu-dia'
+        ? item.kind === 'fondo'
+        : item.kind === 'carta' && item.price !== null && (!category || item.category_id === category))
+      && this.searchText(item.name).includes(query),
+    );
+  });
+  readonly starters = computed(() => this.catalog().filter((item) => item.kind === 'entrada'));
+  readonly customer: StaffOrderDraft['customer'] = {
+    method: 'table', name: '', phone: '', tableLabel: '', payment: null, address: '', reference: '',
+  };
+  lines: DraftLine[] = [];
+  productKey = '';
+  starterKey = '';
+  menuType: 'economico' | 'ejecutivo' = 'economico';
+  private nextKey = 0;
+  private lastAttempt?: { body: string; id: string };
+  private readonly api = inject(LocalOperationsApi);
+
+  ngOnInit(): void {
+    const order = this.order();
+    if (order) {
+      Object.assign(this.customer, {
+        method: order.method, name: order.customerName, phone: order.customerPhone,
+        tableLabel: order.tableLabel ?? '', payment: order.payment,
+        address: order.address ?? '', reference: order.reference ?? '',
+      });
+      this.lines = order.items.map((item) => ({
+        ...item,
+        key: this.nextKey++,
+        modifiers: (item.modifiers ?? []).join(', '),
+      }));
+    }
+    void this.loadCatalog();
+    void this.loadModifiers();
+  }
+
+  async loadModifiers(): Promise<void> {
+    this.changingModifiers.set(true);
+    this.modifierError.set('');
+    try {
+      this.modifiers.set((await this.api.orderModifiers()).modifiers);
+    } catch {
+      this.modifierError.set('No se pudieron cargar las opciones. Puedes escribirlas en cada plato.');
+    } finally {
+      this.changingModifiers.set(false);
+    }
+  }
+
+  async saveModifier(): Promise<void> {
+    if (!this.newModifier.trim() || this.changingModifiers()) return;
+    this.changingModifiers.set(true);
+    this.modifierError.set('');
+    try {
+      this.modifiers.set((await this.api.createOrderModifier(this.newModifier.trim())).modifiers);
+      this.newModifier = '';
+    } catch (error) {
+      this.modifierError.set(error instanceof Error ? error.message : 'No se pudo guardar la opción.');
+    } finally {
+      this.changingModifiers.set(false);
+    }
+  }
+
+  async removeModifier(modifier: OrderModifier): Promise<void> {
+    if (this.changingModifiers()) return;
+    this.changingModifiers.set(true);
+    this.modifierError.set('');
+    try {
+      await this.api.deleteOrderModifier(modifier.id);
+      this.modifiers.update((entries) => entries.filter(({ id }) => id !== modifier.id));
+    } catch {
+      this.modifierError.set('No se pudo eliminar la opción.');
+    } finally {
+      this.changingModifiers.set(false);
+    }
+  }
+
+  applyModifier(line: DraftLine, name: string): void {
+    const options = this.lineModifiers(line);
+    if (name && !options.includes(name) && options.length < 8) {
+      line.modifiers = [...options, name].join(', ');
+    }
+  }
+
+  async loadCatalog(): Promise<void> {
+    this.loading.set(true);
+    this.error.set('');
+    try {
+      const { items, prices } = await this.api.catalog();
+      this.catalog.set(items.filter((item) => item.active));
+      this.prices.set(prices);
+      this.loaded.set(true);
+    } catch {
+      this.error.set('No se pudo cargar el catálogo. Vuelve a intentarlo.');
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  changeCategory(category: string): void {
+    this.category.set(category);
+    this.productKey = '';
+  }
+
+  addLine(): void {
+    const product = this.matches().find((item) => item.item_key === this.productKey);
+    if (!product || this.lines.length >= 100) return;
+    const starter = this.starters().find((item) => item.item_key === this.starterKey);
+    if (product.kind === 'fondo' && !starter) return;
+
+    let productId = product.source_id;
+    let name = product.name;
+    let categoryId = product.category_id ?? '';
+    let price = product.price ?? 0;
+    if (product.kind === 'fondo' && starter) {
+      const type = this.menuTypes.find(({ id }) => id === this.menuType)?.label;
+      productId = ['menu-dia', product.source_id, starter.source_id, this.menuType].join('__');
+      name = 'Menú ' + type + ' · ' + product.name + ' / ' + starter.name;
+      categoryId = 'menu-dia';
+      price = this.prices()[this.menuType];
+    }
+    const original = this.order()?.items.find((item) => item.productId === productId);
+    this.lines.push({
+      key: this.nextKey++, productId, name, categoryId,
+      unitPriceCents: original?.unitPriceCents ?? Math.round(price * 100),
+      quantity: 1, notes: '', modifiers: '',
+    });
+    this.productKey = '';
+  }
+
+  removeLine(key: number): void {
+    this.lines = this.lines.filter((line) => line.key !== key);
+  }
+
+  get subtotal(): number {
+    return this.lines.reduce((total, line) => total + line.unitPriceCents * (line.quantity || 0), 0);
+  }
+
+  get packaging(): number {
+    return this.customer.method === 'table'
+      ? 0
+      : this.lines.reduce((total, line) => total + (line.categoryId === 'bebidas' ? 0 : (line.quantity || 0) * 100), 0);
+  }
+
+  amount(cents: number): string {
+    return 'S/ ' + (cents / 100).toFixed(2);
+  }
+
+  async submit(): Promise<void> {
+    if (!this.lines.length || this.saving()) return;
+    this.error.set('');
+    const customer = { ...this.customer };
+    const draft: StaffOrderDraft = {
+      customer,
+      items: this.lines.map(({ productId, quantity, notes, modifiers }) => ({
+        productId, quantity, notes,
+        modifiers: this.lineModifiers({ modifiers }),
+      })),
+      expectedTotalCents: this.subtotal + this.packaging,
+    };
+    if (draft.items.some((line) => line.modifiers!.length > 8 || line.modifiers!.some((value) => value.length > 40))) {
+      this.error.set('Cada plato admite hasta 8 indicaciones de 40 caracteres cada una.');
+      return;
+    }
+    const body = JSON.stringify(draft);
+    if (this.lastAttempt?.body !== body) this.lastAttempt = { body, id: crypto.randomUUID() };
+    this.saving.set(true);
+    try {
+      const { order } = await this.api.saveStaffOrder(draft, this.order(), this.lastAttempt.id);
+      this.saved.emit(order);
+    } catch (error) {
+      this.error.set(error instanceof Error ? error.message : 'No se pudo guardar el pedido.');
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
+  private searchText(value: string): string {
+    return value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase().trim();
+  }
+
+  private lineModifiers(line: Pick<DraftLine, 'modifiers'>): string[] {
+    return line.modifiers.split(',').map((value) => value.trim()).filter(Boolean);
+  }
+}

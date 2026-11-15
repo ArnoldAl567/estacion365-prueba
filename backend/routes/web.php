@@ -3,6 +3,7 @@
 use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\DemandReportController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OrderModifierController;
 use App\Http\Controllers\SessionController;
 use App\Http\Controllers\StaffController;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +26,11 @@ Route::prefix('local-api')->group(function () {
         Route::patch('/orders/{order}', [OrderController::class, 'update'])->whereNumber('order');
     });
     Route::middleware('staff:admin')->group(function () {
+        Route::post('/staff-orders', [OrderController::class, 'storeFromStaff']);
+        Route::patch('/staff-orders/{order}', [OrderController::class, 'editFromStaff'])->whereNumber('order');
+        Route::get('/order-modifiers', [OrderModifierController::class, 'index']);
+        Route::post('/order-modifiers', [OrderModifierController::class, 'store']);
+        Route::delete('/order-modifiers/{id}', [OrderModifierController::class, 'destroy'])->whereNumber('id');
         Route::get('/reports/demand', DemandReportController::class);
         Route::post('/catalog/items', [CatalogController::class, 'store']);
         Route::patch('/catalog/items/{itemKey}', [CatalogController::class, 'update'])->where('itemKey', '[A-Za-z0-9:_-]+');

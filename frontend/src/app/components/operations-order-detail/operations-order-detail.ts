@@ -1,6 +1,6 @@
 import { CurrencyPipe, DatePipe } from '@angular/common';
 import { Component, input, output } from '@angular/core';
-import { isActiveOrderStatus, ORDER_STATUSES, OrderStatus, StaffOrder } from '../../models/operations.models';
+import { isActiveOrderStatus, ORDER_STATUSES, OrderStatus, StaffOrder, staffOrderMethod, staffOrderPayment } from '../../models/operations.models';
 
 @Component({
   selector: 'app-operations-order-detail',
@@ -19,9 +19,8 @@ export class OperationsOrderDetail {
   statusLabel(status: OrderStatus): string {
     return ORDER_STATUSES.find((option) => option.id === status)?.label ?? status;
   }
-  methodLabel(method: StaffOrder['method']): string {
-    return { pickup: 'Retiro en local', delivery: 'A domicilio', table: 'Para mesa' }[method];
-  }
+  readonly staffOrderMethod = staffOrderMethod;
+  readonly staffOrderPayment = staffOrderPayment;
   nextAction(order: StaffOrder): string {
     return ORDER_STATUSES.find((status) => status.id === order.status)?.action ?? '';
   }

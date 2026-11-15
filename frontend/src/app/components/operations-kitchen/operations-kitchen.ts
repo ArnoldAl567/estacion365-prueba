@@ -1,6 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { Component, input, output } from '@angular/core';
-import { ORDER_STATUSES, OrderStatus, StaffOrder } from '../../models/operations.models';
+import { ORDER_STATUSES, OrderStatus, StaffOrder, staffOrderMethod } from '../../models/operations.models';
 
 @Component({
   selector: 'app-operations-kitchen',
@@ -33,9 +33,7 @@ export class OperationsKitchen {
     const minutes = Math.floor(seconds / 60).toString().padStart(2, '0');
     return `${minutes} min ${(seconds % 60).toString().padStart(2, '0')} s`;
   }
-  methodLabel(method: StaffOrder['method']): string {
-    return { pickup: 'Retiro en local', delivery: 'A domicilio', table: 'Para mesa' }[method];
-  }
+  readonly staffOrderMethod = staffOrderMethod;
   nextAction(order: StaffOrder): string {
     return ORDER_STATUSES.find((status) => status.id === order.status)?.action ?? '';
   }

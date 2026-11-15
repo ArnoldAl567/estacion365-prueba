@@ -14,6 +14,7 @@ export interface OrderLine {
   unitPriceCents: number;
   subtotalCents: number;
   notes: string;
+  modifiers?: string[];
   categoryId: string;
   main: string | null;
   starter: string | null;
@@ -29,7 +30,7 @@ export interface OrderReceipt {
   packagingCents: number;
   totalCents: number;
   method: 'pickup' | 'delivery' | 'table';
-  payment: 'yape' | 'cash';
+  payment: 'yape' | 'cash' | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -38,7 +39,37 @@ export interface StaffOrder extends OrderReceipt {
   customerPhone: string;
   address: string | null;
   reference: string | null;
-  events?: { status: OrderStatus; at: string; by: string; reason?: string | null }[];
+  tableLabel?: string | null;
+  revision?: number;
+  events?: { status: OrderStatus; at: string; by: string; reason?: string | null; edited?: boolean }[];
+}
+
+export interface StaffOrderDraft {
+  customer: {
+    name: string;
+    phone: string;
+    method: OrderReceipt['method'];
+    payment: OrderReceipt['payment'];
+    tableLabel: string;
+    address: string;
+    reference: string;
+  };
+  items: Pick<OrderLine, 'productId' | 'quantity' | 'notes' | 'modifiers'>[];
+  expectedTotalCents: number;
+}
+
+export interface OrderModifier {
+  id: number;
+  name: string;
+}
+
+export function staffOrderMethod(order: StaffOrder): string {
+  if (order.method === 'table') return order.tableLabel ? 'Mesa ' + order.tableLabel : 'Salón';
+  return order.method === 'delivery' ? 'Delivery' : 'Para llevar';
+}
+
+export function staffOrderPayment(order: StaffOrder): string {
+  return order.payment === 'yape' ? 'Yape' : order.payment === 'cash' ? 'Efectivo' : 'Por definir';
 }
 export interface OrderFeed {
   orders: StaffOrder[];

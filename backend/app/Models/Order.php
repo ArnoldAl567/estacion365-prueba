@@ -46,6 +46,9 @@ class Order extends Model
             'customerPhone' => $this->customer_phone,
             'address' => $this->address,
             'reference' => $this->reference,
+            'tableLabel' => $this->table_label,
+            'source' => $this->source ?? 'web',
+            'revision' => (int) $this->revision,
         ];
     }
 }

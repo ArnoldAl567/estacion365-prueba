@@ -20,12 +20,16 @@
   <div class="detail-body">
     <span [class]="'status-badge ' + order.status"><i></i>{{ statusLabel(order.status) }}</span>
     <section class="detail-customer">
-      <span class="staff-avatar">{{ order.customerName.charAt(0) }}</span>
-      <div>
-        <strong>{{ order.customerName }}</strong
-        ><a [href]="'tel:+51' + order.customerPhone">{{ order.customerPhone }}</a>
-      </div>
-      <span class="method-tag">{{ methodLabel(order.method) }}</span>
+      @if (order.customerName || order.customerPhone) {
+        <span class="staff-avatar">{{ order.customerName.charAt(0) || '•' }}</span>
+        <div>
+          <strong>{{ order.customerName }}</strong>
+          @if (order.customerPhone) {
+            <a [href]="'tel:+51' + order.customerPhone">{{ order.customerPhone }}</a>
+          }
+        </div>
+      }
+      <span class="method-tag">{{ staffOrderMethod(order) }}</span>
     </section>
     @if (order.address) {
       <div class="detail-address">
@@ -48,6 +52,9 @@
             }
             @if (item.notes) {
               <p class="ticket-note">{{ item.notes }}</p>
+            }
+            @if (item.modifiers?.length) {
+              <p class="ticket-note">{{ item.modifiers?.join(' · ') }}</p>
             }
           </div>
           <strong>{{
@@ -77,7 +84,7 @@
           order.totalCents / 100 | currency: 'PEN' : 'symbol-narrow' : '1.2-2' : 'es-PE'
         }}</strong>
       </div>
-      <small>Medio de pago · {{ order.payment === 'yape' ? 'Yape' : 'Efectivo' }}</small>
+      <small>Medio de pago · {{ staffOrderPayment(order) }}</small>
     </div>
     @if (order.events?.length) {
       <h3>Recorrido del pedido</h3>
@@ -86,9 +93,9 @@
           <li>
             <i [class]="event.status"></i>
             <div>
-              <strong>{{ statusLabel(event.status) }}</strong
+              <strong>{{ event.edited ? 'Pedido editado' : statusLabel(event.status) }}</strong
               ><small>{{ event.by }} · {{ event.at | date: 'HH:mm' : '-0500' }}</small>
-              @if (event.reason) { <p class="ticket-note">{{ event.reason }}</p> }
+              @if (event.reason && !event.edited) { <p class="ticket-note">{{ event.reason }}</p> }
             </div>
           </li>
         }

@@ -30,7 +30,15 @@
             }
             <div class="receipt-items">
               @for (item of receipt.items; track $index) {
-                <div><span>{{ item.quantity }} × {{ item.name }}@if (item.starter) { <small>Entrada · {{ item.starter }}</small> }</span><strong>{{ item.subtotalCents / 100 | currency:'PEN':'symbol-narrow':'1.2-2':'es-PE' }}</strong></div>
+                <div>
+                  <span>
+                    {{ item.quantity }} × {{ item.name }}
+                    @if (item.starter) { <small>Entrada · {{ item.starter }}</small> }
+                    @if (item.modifiers?.length) { <small>{{ item.modifiers?.join(' · ') }}</small> }
+                    @if (item.notes) { <small>{{ item.notes }}</small> }
+                  </span>
+                  <strong>{{ item.subtotalCents / 100 | currency:'PEN':'symbol-narrow':'1.2-2':'es-PE' }}</strong>
+                </div>
               }
               @if (receipt.packagingCents) { <div><span>Tápers</span><strong>{{ receipt.packagingCents / 100 | currency:'PEN':'symbol-narrow':'1.2-2':'es-PE' }}</strong></div> }
               <div class="receipt-total"><strong>{{ cancelled ? 'Importe original' : 'Total confirmado' }}</strong><strong>{{ receipt.totalCents / 100 | currency:'PEN':'symbol-narrow':'1.2-2':'es-PE' }}</strong></div>

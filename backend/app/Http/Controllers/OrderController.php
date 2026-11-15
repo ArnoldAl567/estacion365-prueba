@@ -24,43 +24,86 @@ class OrderController extends Controller
 
     public function store(Request $request, OrderPricing $pricing): JsonResponse
     {
+        return $this->saveNew($request, $pricing, false);
+    }
+
+    public function storeFromStaff(Request $request, OrderPricing $pricing): JsonResponse
+    {
+        return $this->saveNew($request, $pricing, true);
+    }
+
+    private function validateDraft(Request $request, bool $staff, bool $editing = false): array
+    {
         if (is_array($request->input('customer'))) {
             $customer = $request->input('customer');
-            foreach (['name', 'address', 'reference'] as $field) {
+            foreach (['name', 'address', 'reference', 'tableLabel'] as $field) {
                 if (isset($customer[$field]) && is_string($customer[$field])) {
-                    $customer[$field] = trim($customer[$field]);
+                    $value = trim($customer[$field]);
+                    $customer[$field] = $value === '' ? null : $value;
                 }
             }
             $request->merge(['customer' => $customer]);
         }
         $data = $request->validate([
-            'requestId' => 'required|uuid',
+            ...($editing ? ['expectedRevision' => 'required|integer|min:0'] : ['requestId' => 'required|uuid']),
             'expectedTotalCents' => 'required|integer|min:0',
-            'customer' => 'required|array:name,phone,method,payment,address,reference',
-            'customer.name' => 'required|string|min:2|max:120',
-            'customer.phone' => ['required', 'string', 'regex:/^[0-9]{9}$/'],
+            'customer' => 'required|array:name,phone,method,payment,address,reference'.($staff ? ',tableLabel' : ''),
+            'customer.name' => ($staff ? 'nullable|required_unless:customer.method,table' : 'required').'|string|min:2|max:120',
+            'customer.phone' => [
+                ...($staff ? ['nullable', 'required_if:customer.method,delivery'] : ['required']),
+                'string', 'regex:/^[0-9]{9}$/',
+            ],
             'customer.method' => ['required', Rule::in(['pickup', 'delivery', 'table'])],
-            'customer.payment' => ['required', Rule::in(['yape', 'cash'])],
+            'customer.payment' => [$staff ? 'nullable' : 'required', Rule::in(['yape', 'cash'])],
+            'customer.tableLabel' => $staff ? 'exclude_unless:customer.method,table|required|string|max:40' : 'prohibited',
             'customer.address' => 'nullable|string|max:240|required_if:customer.method,delivery|min:6',
             'customer.reference' => 'nullable|string|max:160',
             'items' => 'required|array|min:1|max:100',
             'items.*.productId' => 'required|string|max:200',
             'items.*.quantity' => 'required|integer|min:1|max:99',
             'items.*.notes' => 'nullable|string|max:100',
+            ...($staff ? ['items.*.modifiers' => 'nullable|array|list|max:8', 'items.*.modifiers.*' => 'required|string|max:40'] : []),
         ], [
             'customer.phone.regex' => 'Ingresa un teléfono de 9 dígitos.',
+            'customer.phone.required_if' => 'Ingresa el teléfono del cliente para el delivery.',
+            'customer.name.required_unless' => 'Ingresa el nombre del cliente.',
             'customer.address.required_if' => 'Completa la dirección de entrega.',
             'items.required' => 'Agrega platos a tu pedido.',
+            'customer.tableLabel.required' => 'Indica la mesa del pedido.',
         ]);
         abort_if(array_sum(array_column($data['items'], 'quantity')) > 200, 422, 'El pedido admite hasta 200 unidades.');
+
+        $data['items'] = array_map(fn ($line) => [
+            'productId' => $line['productId'], 'quantity' => (int) $line['quantity'], 'notes' => trim($line['notes'] ?? ''),
+            ...($staff ? ['modifiers' => array_values(array_unique(array_map('trim', $line['modifiers'] ?? [])))] : []),
+        ], $data['items']);
+
+        return $data;
+    }
+
+    private function customerAttributes(array $customer): array
+    {
+        return [
+            'customer_name' => $customer['name'] ?? '', 'customer_phone' => $customer['phone'] ?? '',
+            'delivery_method' => $customer['method'], 'payment_method' => $customer['payment'] ?? null,
+            'address' => $customer['method'] === 'delivery' ? $customer['address'] : null,
+            'reference' => $customer['method'] === 'delivery' ? ($customer['reference'] ?? '') : null,
+            'table_label' => $customer['tableLabel'] ?? null,
+        ];
+    }
+
+    private function saveNew(Request $request, OrderPricing $pricing, bool $staff): JsonResponse
+    {
+        $data = $this->validateDraft($request, $staff);
         $customer = $data['customer'];
-        $lines = array_map(fn ($line) => ['productId' => $line['productId'], 'quantity' => (int) $line['quantity'], 'notes' => trim($line['notes'] ?? '')], $data['items']);
+        $lines = $data['items'];
         $hash = hash('sha256', json_encode([
-            trim($customer['name']), $customer['phone'], $customer['method'], $customer['payment'],
+            trim($customer['name'] ?? ''), $customer['phone'] ?? '', $customer['method'], $customer['payment'] ?? null,
             trim($customer['address'] ?? ''), trim($customer['reference'] ?? ''), $lines, $data['expectedTotalCents'],
+            ...($staff ? ['staff', $customer['tableLabel'] ?? null] : []),
         ], JSON_THROW_ON_ERROR));
 
-        $order = DB::transaction(function () use ($data, $customer, $lines, $hash, $pricing) {
+        $order = DB::transaction(function () use ($request, $data, $customer, $lines, $hash, $pricing, $staff) {
             DB::select('select pg_advisory_xact_lock(hashtextextended(?, 0))', [$data['requestId']]);
             $existing = Order::where('request_id', $data['requestId'])->first();
             if ($existing) {
@@ -68,7 +111,7 @@ class OrderController extends Controller
 
                 return $existing;
             }
-            if (! config('restaurant.open_24_hours')) {
+            if (! $staff && ! config('restaurant.open_24_hours')) {
                 $hour = now('America/Lima')->hour;
                 abort_if($hour < 9 || $hour >= 23, 422, 'Restaurante cerrado. Atendemos de 9:00 a. m. a 11:00 p. m.');
             }
@@ -76,17 +119,32 @@ class OrderController extends Controller
             abort_unless($amounts['total_cents'] === (int) $data['expectedTotalCents'], 409, 'Los precios cambiaron. Revisa el total actualizado y vuelve a confirmar.');
             $order = Order::create([
                 ...$amounts, 'request_id' => $data['requestId'], 'tracking_id' => (string) Str::uuid(), 'request_hash' => $hash,
-                'customer_name' => trim($customer['name']), 'customer_phone' => $customer['phone'],
-                'delivery_method' => $customer['method'], 'payment_method' => $customer['payment'],
-                'address' => $customer['method'] === 'delivery' ? trim($customer['address']) : null,
-                'reference' => $customer['method'] === 'delivery' ? trim($customer['reference'] ?? '') : null,
+                ...$this->customerAttributes($customer), 'source' => $staff ? 'staff' : 'web',
             ]);
-            $order->events()->create(['status' => 'pending']);
+            $order->events()->create(['status' => 'pending', 'user_id' => $staff ? $request->user()->id : null]);
 
             return $order;
         });
 
-        return response()->json(['order' => $order->receipt()], $order->wasRecentlyCreated ? 201 : 200);
+        return response()->json(['order' => $staff ? $order->staffDetails() : $order->receipt()], $order->wasRecentlyCreated ? 201 : 200);
+    }
+
+    public function editFromStaff(Request $request, Order $order, OrderPricing $pricing): array
+    {
+        $data = $this->validateDraft($request, true, true);
+        $saved = DB::transaction(function () use ($request, $order, $pricing, $data) {
+            $current = Order::lockForUpdate()->findOrFail($order->id);
+            abort_unless($current->status === 'pending', 409, 'Solo se pueden editar pedidos pendientes.');
+            abort_unless((int) $current->revision === (int) $data['expectedRevision'], 409, 'Otra persona editó este pedido. Cierra el formulario y abre la versión actualizada.');
+            $amounts = $pricing->calculate($data['items'], $data['customer']['method'], $current->items);
+            abort_unless($amounts['total_cents'] === (int) $data['expectedTotalCents'], 409, 'Los precios cambiaron. Revisa el total actualizado.');
+            $current->update([...$amounts, ...$this->customerAttributes($data['customer']), 'revision' => $current->revision + 1]);
+            $current->events()->create(['status' => 'pending', 'user_id' => $request->user()->id, 'reason' => 'Edición del pedido']);
+
+            return $current;
+        });
+
+        return ['order' => $saved->staffDetails()];
     }
 
     public function track(string $trackingId): array
@@ -111,7 +169,8 @@ class OrderController extends Controller
             if (! empty($data['search'])) {
                 $search = $data['search'];
                 $query->where(function ($query) use ($search) {
-                    $query->where('customer_name', 'ilike', '%'.$search.'%')->orWhere('customer_phone', 'like', '%'.$search.'%');
+                    $query->where('customer_name', 'ilike', '%'.$search.'%')->orWhere('customer_phone', 'like', '%'.$search.'%')
+                        ->orWhere('table_label', 'ilike', '%'.$search.'%');
                     if (ctype_digit(ltrim($search, '#'))) {
                         $query->orWhere('id', (int) ltrim($search, '#'));
                     }
@@ -136,6 +195,7 @@ class OrderController extends Controller
     {
         return ['order' => [...$order->staffDetails(), 'events' => $order->events()->with('user:id,name')->get()->map(fn ($event) => [
             'status' => $event->status, 'at' => $event->created_at->toIso8601String(), 'by' => $event->user?->name ?? 'Carta digital',
+            'edited' => $event->status === 'pending' && $event->reason === 'Edición del pedido',
             'reason' => $event->reason,
         ])]];
     }
@@ -145,11 +205,13 @@ class OrderController extends Controller
         $data = $request->validate([
             'status' => ['required', Rule::in(['preparing', 'ready', 'delivered', 'cancelled'])],
             'expectedStatus' => 'required|string',
+            'expectedRevision' => 'sometimes|integer|min:0',
             'reason' => 'required_if:status,cancelled|nullable|string|max:240',
         ], ['reason.required_if' => 'Escribe el motivo de la cancelación.']);
         $saved = DB::transaction(function () use ($request, $order, $data) {
             $current = Order::lockForUpdate()->findOrFail($order->id);
             abort_unless($current->status === $data['expectedStatus'], 409, 'Otra persona actualizó este pedido. La vista se actualizará.');
+            abort_if(isset($data['expectedRevision']) && (int) $current->revision !== (int) $data['expectedRevision'], 409, 'El contenido del pedido cambió. Revísalo antes de continuar.');
             $next = ['pending' => 'preparing', 'preparing' => 'ready', 'ready' => 'delivered'];
             $cancelling = $data['status'] === 'cancelled';
             $allowed = $cancelling ? isset($next[$current->status]) : ($next[$current->status] ?? null) === $data['status'];

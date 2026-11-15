@@ -7,20 +7,33 @@ use Illuminate\Validation\ValidationException;
 
 class OrderPricing
 {
-    public function calculate(array $lines, string $method): array
+    public function calculate(array $lines, string $method, array $previousItems = []): array
     {
         $items = [];
         $subtotal = 0;
         $packaging = 0;
         $products = DB::table('menu_products')->where('active', true)->get()->keyBy('item_key');
         $prices = DB::table('menu_prices')->pluck('price_cents', 'type');
+        $previous = collect($previousItems)->keyBy('productId');
+        $remaining = collect($previousItems)->groupBy('productId')->map(fn ($items) => $items->sum('quantity'));
 
         foreach ($lines as $line) {
             $id = $line['productId'];
+            $quantity = (int) $line['quantity'];
+            $original = $previous->get($id);
             $starter = null;
             $main = null;
             $menuType = null;
-            if (str_starts_with($id, 'menu-dia__')) {
+            if ($original) {
+                if ($quantity > $remaining->get($id, 0) && ! $this->available($id, $products, $prices)) {
+                    throw ValidationException::withMessages(['items' => 'El plato está agotado y no se pueden añadir más unidades.']);
+                }
+                $remaining->put($id, $remaining->get($id, 0) - $quantity);
+                $name = $original['name'];
+                $unitPrice = $original['unitPriceCents'];
+                $category = $original['categoryId'];
+                $menuType = $original['menuType'];
+            } elseif (str_starts_with($id, 'menu-dia__')) {
                 $parts = explode('__', $id);
                 $type = $parts[3] ?? '';
                 $main = $products->get('fondo:'.($parts[1] ?? ''));
@@ -41,7 +54,6 @@ class OrderPricing
                 $unitPrice = (int) $product->price_cents;
                 $category = $product->category_id;
             }
-            $quantity = (int) $line['quantity'];
             $lineTotal = $unitPrice * $quantity;
             $subtotal += $lineTotal;
             if ($method !== 'table' && $category !== 'bebidas') {
@@ -51,10 +63,22 @@ class OrderPricing
                 'productId' => $id, 'name' => $name, 'quantity' => $quantity,
                 'unitPriceCents' => $unitPrice, 'subtotalCents' => $lineTotal,
                 'notes' => trim($line['notes'] ?? ''), 'categoryId' => $category,
-                'main' => $main?->name, 'starter' => $starter?->name, 'menuType' => $menuType,
+                'main' => $original['main'] ?? $main?->name, 'starter' => $original['starter'] ?? $starter?->name, 'menuType' => $menuType,
+                ...(empty($line['modifiers']) ? [] : ['modifiers' => $line['modifiers']]),
             ];
         }
 
         return ['items' => $items, 'subtotal_cents' => $subtotal, 'packaging_cents' => $packaging, 'total_cents' => $subtotal + $packaging];
+    }
+
+    private function available(string $id, \Illuminate\Support\Collection $products, \Illuminate\Support\Collection $prices): bool
+    {
+        if (! str_starts_with($id, 'menu-dia__')) {
+            return $products->get('carta:'.$id)?->price_cents !== null;
+        }
+
+        [, $main, $starter, $type] = array_pad(explode('__', $id), 4, '');
+
+        return $products->has('fondo:'.$main) && $products->has('entrada:'.$starter) && $prices->has($type);
     }
 }

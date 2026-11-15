@@ -159,6 +159,67 @@ class RestaurantOperationsTest extends TestCase
         $this->assertEquals(4700, Order::find($id)->total_cents);
     }
 
+    public function test_salon_orders_share_the_kitchen_feed_and_history(): void
+    {
+        $payload = $this->payload();
+        $payload['customer'] = ['method' => 'table'];
+        $payload['expectedTotalCents'] = 4500;
+        $payload['items'][0]['modifiers'] = ['Sin cebolla', 'Salsa aparte'];
+        $this->postJson('/local-api/staff-orders', $payload)->assertUnauthorized();
+        $this->actingAs($this->staff('kitchen'))->postJson('/local-api/staff-orders', $payload)->assertForbidden();
+        $this->postJson('/local-api/order-modifiers', ['name' => 'Salsa aparte'])->assertForbidden();
+        $this->actingAs($this->staff())->postJson('/local-api/staff-orders', $payload)
+            ->assertUnprocessable()->assertJsonValidationErrors('customer.tableLabel');
+
+        $modifier = $this->postJson('/local-api/order-modifiers', ['name' => 'Salsa aparte'])->assertOk()->json('modifiers.0.id');
+        $this->postJson('/local-api/order-modifiers', ['name' => 'salsa aparte'])->assertConflict();
+        $payload['customer']['tableLabel'] = 'Terraza 4';
+        $order = $this->postJson('/local-api/staff-orders', $payload)->assertCreated()
+            ->assertJsonPath('order.tableLabel', 'Terraza 4')->assertJsonPath('order.source', 'staff')
+            ->assertJsonPath('order.payment', null)->assertJsonPath('order.packagingCents', 0)
+            ->assertJsonPath('order.items.0.modifiers.1', 'Salsa aparte')->json('order');
+        $this->postJson('/local-api/staff-orders', $payload)->assertOk()->assertJsonPath('order.id', $order['id']);
+        $this->assertDatabaseCount('orders', 1);
+        $this->deleteJson('/local-api/order-modifiers/'.$modifier)->assertNoContent();
+        $this->getJson('/local-api/order-modifiers')->assertJsonCount(0, 'modifiers');
+
+        $this->actingAs($this->staff('kitchen'))->getJson('/local-api/orders')
+            ->assertJsonPath('orders.0.id', $order['id'])->assertJsonPath('orders.0.tableLabel', 'Terraza 4')
+            ->assertJsonPath('orders.0.items.0.modifiers.1', 'Salsa aparte');
+        $this->patchJson('/local-api/orders/'.$order['id'], [
+            'status' => 'cancelled', 'expectedStatus' => 'pending', 'reason' => 'Solicitud del cliente',
+        ])->assertOk();
+        $this->getJson('/local-api/orders?scope=history&search=Terraza')
+            ->assertJsonPath('orders.0.id', $order['id'])->assertJsonPath('orders.0.status', 'cancelled');
+    }
+
+    public function test_salon_edits_preserve_booked_prices_and_reject_stale_changes(): void
+    {
+        $payload = $this->payload();
+        $payload['customer'] = ['method' => 'delivery', 'name' => 'Cliente local'];
+        $this->actingAs($this->staff())->postJson('/local-api/staff-orders', $payload)
+            ->assertUnprocessable()->assertJsonValidationErrors(['customer.address', 'customer.phone']);
+        $payload['customer'] += ['address' => 'Av. Los Pinos 461', 'phone' => '987654321'];
+        $order = $this->postJson('/local-api/staff-orders', $payload)->assertCreated()->json('order');
+        $path = '/local-api/staff-orders/'.$order['id'];
+        $payload['expectedRevision'] = 0;
+        $payload['items'][0]['quantity'] = 1;
+        $payload['expectedTotalCents'] = 2600;
+        DB::table('menu_products')->where('item_key', 'carta:arroz')->update(['price_cents' => 2500, 'active' => false]);
+        $this->patchJson($path, $payload)->assertOk()->assertJsonPath('order.revision', 1)
+            ->assertJsonPath('order.items.0.unitPriceCents', 2000);
+        $this->patchJson($path, $payload)->assertConflict();
+        $this->getJson('/local-api/orders/'.$order['id'])->assertJsonPath('order.events.1.edited', true);
+        $payload['expectedRevision'] = 1;
+        $payload['items'][0]['quantity'] = 2;
+        $payload['expectedTotalCents'] = 4700;
+        $this->patchJson($path, $payload)->assertUnprocessable();
+        $status = ['status' => 'preparing', 'expectedStatus' => 'pending'];
+        $this->patchJson('/local-api/orders/'.$order['id'], $status + ['expectedRevision' => 0])->assertConflict();
+        $this->patchJson('/local-api/orders/'.$order['id'], $status + ['expectedRevision' => 1])->assertOk();
+        $this->patchJson($path, $payload)->assertConflict();
+    }
+
     public function test_initial_admin_setup_only_runs_once_and_user_access_can_be_revoked(): void
     {
         $setup = ['name' => 'Propietario', 'username' => 'Estacion365', 'password' => 'Prueba-local-365!', 'password_confirmation' => 'Prueba-local-365!'];

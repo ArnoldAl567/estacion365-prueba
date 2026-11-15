@@ -28,11 +28,11 @@
           </header>
           <div class="ticket-meta">
             <span class="method-tag" [class.delivery]="order.method === 'delivery'">{{
-              methodLabel(order.method)
+              staffOrderMethod(order)
             }}</span
             ><time>{{ order.createdAt | date: 'HH:mm' : '-0500' }}</time>
           </div>
-          <div class="ticket-customer">{{ order.customerName }}</div>
+          @if (order.customerName) { <div class="ticket-customer">{{ order.customerName }}</div> }
           <div class="ticket-items">
             @for (item of order.items; track $index) {
               <div class="ticket-item">
@@ -47,6 +47,9 @@
                   }
                   @if (item.notes) {
                     <p class="ticket-note"><span>!</span> {{ item.notes }}</p>
+                  }
+                  @if (item.modifiers?.length) {
+                    <p class="ticket-note">{{ item.modifiers?.join(' · ') }}</p>
                   }
                 </div>
               </div>

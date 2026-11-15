@@ -21,6 +21,8 @@ import {
   StaffOrder,
   StaffRole,
   StaffUser,
+  staffOrderMethod,
+  staffOrderPayment,
 } from '../../models/operations.models';
 import { OperationsAccess, OperationsCredentials } from '../operations-access/operations-access';
 import { AdminPanel } from '../admin-panel/admin-panel';
@@ -29,6 +31,7 @@ import { LocalCatalogAdapter } from '../../services/local-catalog-adapter.servic
 import { OperationsKitchen } from '../operations-kitchen/operations-kitchen';
 import { OperationsOrderDetail } from '../operations-order-detail/operations-order-detail';
 import { OperationsReports } from '../operations-reports/operations-reports';
+import { OperationsOrderForm } from '../operations-order-form/operations-order-form';
 
 registerLocaleData(localeEsPe);
 
@@ -62,6 +65,7 @@ interface StaffForm {
     OperationsKitchen,
     OperationsOrderDetail,
     OperationsReports,
+    OperationsOrderForm,
   ],
   providers: [{ provide: CatalogApiService, useClass: LocalCatalogAdapter }],
   templateUrl: './operations-panel.html',
@@ -82,6 +86,9 @@ export class OperationsPanel implements OnInit, OnDestroy {
   readonly search = signal('');
   readonly statusFilter = signal<'all' | OrderStatus>('all');
   readonly selected = signal<StaffOrder | null>(null);
+  readonly editor = signal<StaffOrder | 'new' | null>(null);
+  readonly staffOrderMethod = staffOrderMethod;
+  readonly staffOrderPayment = staffOrderPayment;
   readonly changing = signal(new Set<number>());
   readonly cancellation = signal<StaffOrder | null>(null);
   readonly cancellationError = signal('');
@@ -113,7 +120,7 @@ export class OperationsPanel implements OnInit, OnDestroy {
       (order) =>
         (this.statusFilter() === 'all' || order.status === this.statusFilter()) &&
         (!search ||
-          `${order.number} ${order.customerName} ${order.customerPhone}`
+          `${order.number} ${order.customerName} ${order.customerPhone} ${staffOrderMethod(order)}`
             .toLocaleLowerCase('es-PE')
             .includes(search)),
     );
@@ -121,7 +128,7 @@ export class OperationsPanel implements OnInit, OnDestroy {
   readonly pageTitle = computed(
     () =>
       ({
-        orders: 'Pedidos',
+        orders: 'Salón y pedidos',
         kitchen: 'Cocina en vivo',
         history: 'Historial de pedidos',
         users: 'Equipo y accesos',
@@ -130,7 +137,7 @@ export class OperationsPanel implements OnInit, OnDestroy {
       })[this.view()],
   );
   readonly navigation = [
-    { id: 'orders' as const, label: 'Pedidos', icon: 'M8 3h8l4 4v14H4V3h4m0 5h8M8 12h8M8 16h5' },
+    { id: 'orders' as const, label: 'Salón y pedidos', icon: 'M8 3h8l4 4v14H4V3h4m0 5h8M8 12h8M8 16h5' },
     {
       id: 'kitchen' as const,
       label: 'Cocina',
@@ -244,6 +251,7 @@ export class OperationsPanel implements OnInit, OnDestroy {
       await this.api.logout();
       this.orders.set([]);
       this.selected.set(null);
+      this.editor.set(null);
       this.users.set([]);
       this.staffForm.set(null);
       this.muteSound();
@@ -339,6 +347,7 @@ export class OperationsPanel implements OnInit, OnDestroy {
   }
 
   private async showView(view: OperationsView): Promise<void> {
+    if (view !== 'orders') this.editor.set(null);
     this.view.set(view);
     requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'instant' }));
     this.error.set('');
@@ -361,15 +370,15 @@ export class OperationsPanel implements OnInit, OnDestroy {
   statusLabel(status: OrderStatus): string {
     return this.statuses.find((option) => option.id === status)?.label ?? status;
   }
-  methodLabel(method: string): string {
-    return (
-      (
-        { pickup: 'Retiro en local', delivery: 'A domicilio', table: 'Para mesa' } as Record<
-          string,
-          string
-        >
-      )[method] ?? method
-    );
+  openEditor(order: StaffOrder | 'new'): void {
+    this.editor.set(order);
+    requestAnimationFrame(() => document.getElementById('order-editor-title')?.focus());
+  }
+
+  async orderSaved(order: StaffOrder): Promise<void> {
+    this.editor.set(null);
+    this.showNotice('Pedido #' + order.number + ' guardado.');
+    await this.refresh();
   }
   nextAction(order: StaffOrder): string {
     return this.statuses.find((option) => option.id === order.status)?.action ?? '';
@@ -672,4 +681,3 @@ export class OperationsPanel implements OnInit, OnDestroy {
     return error instanceof Error ? error.message : 'No se pudo completar la operación.';
   }
 }
-
