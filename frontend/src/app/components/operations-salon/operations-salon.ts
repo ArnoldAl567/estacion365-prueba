@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, computed, HostListener, inject, input, OnInit, output, signal } from '@angular/core';
+import { Component, computed, ElementRef, HostListener, inject, input, OnInit, output, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { isActiveOrderStatus, ORDER_STATUSES, SalonLayout, StaffOrder } from '../../models/operations.models';
 import { LocalOperationsApi, OperationsError } from '../../services/local-operations-api.service';
@@ -27,12 +27,16 @@ export class OperationsSalon implements OnInit {
   readonly statuses = ORDER_STATUSES;
   readonly layout = signal<SalonLayout | null>(null);
   readonly draft = signal<SalonLayout | null>(null);
+  readonly confirmingClose = signal(false);
   readonly loading = signal(false);
   readonly saving = signal(false);
   readonly error = signal('');
   readonly editError = signal('');
   readonly outdated = signal(false);
   private readonly api = inject(LocalOperationsApi);
+  private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('layoutDialog');
+  private readonly heading = viewChild.required<ElementRef<HTMLHeadingElement>>('layoutHeading');
+  private readonly keepEditing = viewChild<ElementRef<HTMLButtonElement>>('keepEditing');
 
   readonly zones = computed(() => {
     const byTable = new Map<string, SalonTable>();
@@ -81,12 +85,39 @@ export class OperationsSalon implements OnInit {
 
   startEditing(): void {
     const layout = this.layout();
-    if (layout) this.draft.set(structuredClone(layout));
+    if (!layout || this.draft()) return;
+    this.draft.set(structuredClone(layout));
     this.editError.set('');
     this.outdated.set(false);
+    this.dialog().nativeElement.showModal();
+    this.heading().nativeElement.focus();
+  }
+
+  cancelDialog(event: Event): void {
+    event.preventDefault();
+    if (this.confirmingClose()) this.continueEditing();
+    else this.requestClose();
+  }
+
+  requestClose(): void {
+    if (this.saving() || this.confirmingClose()) return;
+    if (JSON.stringify(this.draft()) !== JSON.stringify(this.layout())) {
+      this.confirmingClose.set(true);
+      requestAnimationFrame(() => this.keepEditing()?.nativeElement.focus());
+    } else {
+      void this.closeEditor();
+    }
+  }
+
+  continueEditing(): void {
+    this.confirmingClose.set(false);
+    const heading = this.heading().nativeElement;
+    requestAnimationFrame(() => heading.focus());
   }
 
   async closeEditor(): Promise<void> {
+    this.dialog().nativeElement.close();
+    this.confirmingClose.set(false);
     this.draft.set(null);
     if (this.outdated()) await this.loadLayout();
   }
@@ -103,12 +134,13 @@ export class OperationsSalon implements OnInit {
   }
 
   async saveLayout(layout: SalonLayout): Promise<void> {
-    if (this.saving()) return;
+    if (this.saving() || this.confirmingClose()) return;
     this.saving.set(true);
     this.editError.set('');
     try {
       this.layout.set(await this.api.saveSalonLayout(layout));
-      this.draft.set(null);
+      this.outdated.set(false);
+      await this.closeEditor();
       this.layoutSaved.emit();
     } catch (error) {
       this.editError.set(error instanceof Error ? error.message : 'No se pudo guardar el plano.');

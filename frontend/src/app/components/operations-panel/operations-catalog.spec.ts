@@ -109,19 +109,30 @@ describe('Local operations panel', () => {
     fixture.detectChanges();
 
     const salon = fixture.debugElement.query(By.directive(OperationsSalon)).componentInstance as OperationsSalon;
-    salon.startEditing();
+    const root: HTMLElement = fixture.nativeElement;
+    root.querySelector<HTMLButtonElement>('.salon-tools [aria-haspopup="dialog"]')!.click();
+    fixture.detectChanges();
+    const dialog = root.querySelector<HTMLDialogElement>('.layout-dialog')!;
+    expect(dialog.matches(':modal')).toBeTrue();
     const draft = salon.draft()!;
     salon.addZone(draft);
     const zone = draft.zones[draft.zones.length - 1];
     zone.name = 'Terraza';
     salon.addTable(draft, zone);
     zone.tables[0].label = 'Ventana';
+    const escape = new Event('cancel', { cancelable: true });
+    dialog.dispatchEvent(escape);
+    fixture.detectChanges();
+    expect(escape.defaultPrevented).toBeTrue();
+    expect(dialog.open).toBeTrue();
+    expect(dialog.textContent).toContain('¿Descartar los cambios del plano?');
+    salon.continueEditing();
     await salon.saveLayout(draft);
     fixture.detectChanges();
 
     expect(local.saveSalonLayout).toHaveBeenCalledWith(jasmine.objectContaining({ revision: 0 }));
-    const root: HTMLElement = fixture.nativeElement;
     expect(root.querySelector('[aria-label="Terraza"] h3')?.textContent).toBe('Ventana');
+    expect(dialog.open).toBeFalse();
     expect(root.querySelector('.layout-editor')).toBeNull();
     fixture.destroy();
   });

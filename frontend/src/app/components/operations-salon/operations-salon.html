@@ -4,48 +4,68 @@
   } @else if (!layout()) {
     <p role="status">Cargando el plano…</p>
   }
-  <button class="configure-button" type="button" [disabled]="loading() || saving() || !layout()" [attr.aria-expanded]="!!draft()"
-    (click)="draft() ? closeEditor() : startEditing()">
-    {{ draft() ? 'Cerrar configuración' : 'Configurar salones y mesas' }}
+  <button class="configure-button" type="button" [disabled]="loading() || saving() || !layout()"
+    aria-haspopup="dialog" (click)="startEditing()">
+    Configurar salones y mesas
   </button>
 </div>
-@if (draft(); as settings) {
-  <form class="layout-editor" #form="ngForm" (ngSubmit)="form.valid && saveLayout(settings)">
-    <h2>Configurar salones y mesas</h2>
-    <fieldset class="layout-fields" [disabled]="saving()">
-      @for (zone of settings.zones; track zone.id; let zoneIndex = $index) {
-        <section class="zone-editor">
-          <div class="zone-fields">
-            <label>Nombre del salón
-              <input [name]="'zone-' + zone.id" [(ngModel)]="zone.name" required maxlength="60" />
-            </label>
-            <button class="remove-option" type="button" (click)="settings.zones.splice(zoneIndex, 1)">Quitar salón</button>
-          </div>
-          <div class="table-editor-grid">
-            @for (table of zone.tables; track table.id; let tableIndex = $index) {
-              <div class="table-editor">
-                <label>Nombre de mesa
-                  <input [name]="'table-' + table.id" [(ngModel)]="table.label" required maxlength="40" />
+<dialog class="layout-dialog" #layoutDialog aria-labelledby="layout-dialog-title" (cancel)="cancelDialog($event)">
+  <header class="layout-header" [inert]="confirmingClose()">
+    <h2 id="layout-dialog-title" #layoutHeading tabindex="-1">Configurar salones y mesas</h2>
+    <button class="configure-button" type="button" [disabled]="saving()" (click)="requestClose()">Cerrar</button>
+  </header>
+  @if (draft(); as settings) {
+    <form class="layout-editor" #form="ngForm" (ngSubmit)="form.valid && saveLayout(settings)">
+      <div class="layout-content" [inert]="confirmingClose()">
+        <fieldset class="layout-fields" [disabled]="saving()">
+          @for (zone of settings.zones; track zone.id; let zoneIndex = $index) {
+            <section class="zone-editor">
+              <div class="zone-fields">
+                <label>Nombre del salón
+                  <input [name]="'zone-' + zone.id" [(ngModel)]="zone.name" required maxlength="60" />
                 </label>
-                <button class="remove-option" type="button" [attr.aria-label]="'Quitar mesa ' + table.label"
-                  (click)="zone.tables.splice(tableIndex, 1)">Quitar</button>
+                <button class="remove-option" type="button" (click)="settings.zones.splice(zoneIndex, 1)">Quitar salón</button>
               </div>
-            }
+              <div class="table-editor-grid">
+                @for (table of zone.tables; track table.id; let tableIndex = $index) {
+                  <div class="table-editor">
+                    <label>Nombre de mesa
+                      <input [name]="'table-' + table.id" [(ngModel)]="table.label" required maxlength="40" />
+                    </label>
+                    <button class="remove-option" type="button" [attr.aria-label]="'Quitar mesa ' + table.label"
+                      (click)="zone.tables.splice(tableIndex, 1)">Quitar</button>
+                  </div>
+                }
+              </div>
+              <button type="button" class="configure-button" [disabled]="zone.tables.length >= 80" (click)="addTable(settings, zone)">+ Agregar mesa</button>
+            </section>
+          } @empty {
+            <p>Agrega un salón para configurar sus mesas.</p>
+          }
+          <button type="button" class="configure-button" [disabled]="settings.zones.length >= 20" (click)="addZone(settings)">+ Agregar salón</button>
+        </fieldset>
+      </div>
+      @if (confirmingClose()) {
+        <footer class="layout-footer">
+          <p role="status"><strong>¿Descartar los cambios del plano?</strong></p>
+          <div class="layout-actions">
+            <button type="button" class="configure-button" #keepEditing (click)="continueEditing()">Seguir editando</button>
+            <button type="button" class="discard-layout" (click)="closeEditor()">Descartar</button>
           </div>
-          <button type="button" class="configure-button" [disabled]="zone.tables.length >= 80" (click)="addTable(settings, zone)">+ Agregar mesa</button>
-        </section>
-      } @empty {
-        <p>Agrega un salón para configurar sus mesas.</p>
+        </footer>
+      } @else {
+        <footer class="layout-footer">
+          @if (editError()) { <p class="layout-error" role="alert">{{ editError() }}</p> }
+          <div class="layout-actions">
+            <button type="button" class="configure-button" [disabled]="saving()" (click)="requestClose()">Cancelar</button>
+            <button type="submit" class="save-layout" [disabled]="form.invalid || saving()">{{ saving() ? 'Guardando…' : 'Guardar plano' }}</button>
+          </div>
+        </footer>
       }
-      <button type="button" class="configure-button" [disabled]="settings.zones.length >= 20" (click)="addZone(settings)">+ Agregar salón</button>
-    </fieldset>
-    @if (editError()) { <p class="layout-error" role="alert">{{ editError() }}</p> }
-    <div class="layout-actions">
-      <button type="button" class="configure-button" [disabled]="saving()" (click)="closeEditor()">Cancelar</button>
-      <button type="submit" class="save-layout" [disabled]="form.invalid || saving()">{{ saving() ? 'Guardando…' : 'Guardar plano' }}</button>
-    </div>
-  </form>
-} @else if (layout() && !zones().length) {
+    </form>
+  }
+</dialog>
+@if (layout() && !zones().length) {
   <p>Configura un salón y agrega sus mesas para empezar.</p>
 }
 @for (zone of zones(); track zone.id) {
