@@ -32,12 +32,14 @@ import { OperationsKitchen } from '../operations-kitchen/operations-kitchen';
 import { OperationsOrderDetail } from '../operations-order-detail/operations-order-detail';
 import { OperationsReports } from '../operations-reports/operations-reports';
 import { OperationsOrderForm } from '../operations-order-form/operations-order-form';
+import { OperationsSalon } from '../operations-salon/operations-salon';
 
 registerLocaleData(localeEsPe);
 
-type OperationsView = 'orders' | 'kitchen' | 'history' | 'users' | 'catalog' | 'reports';
+type OperationsView = 'salon' | 'orders' | 'kitchen' | 'history' | 'users' | 'catalog' | 'reports';
 const SOUND_PREFERENCE_KEY = 'estacion-ops-sound';
 const VIEW_FRAGMENTS: Record<OperationsView, string> = {
+  salon: '#salon',
   orders: '#pedidos',
   kitchen: '#cocina',
   history: '#historial',
@@ -66,17 +68,18 @@ interface StaffForm {
     OperationsOrderDetail,
     OperationsReports,
     OperationsOrderForm,
+    OperationsSalon,
   ],
   providers: [{ provide: CatalogApiService, useClass: LocalCatalogAdapter }],
   templateUrl: './operations-panel.html',
-  styleUrls: ['./operations-panel.scss', './operations-team.scss'],
+  styleUrls: ['./operations-panel.scss', './operations-team.scss', './operations-navigation.scss'],
 })
 export class OperationsPanel implements OnInit, OnDestroy {
   readonly api = inject(LocalOperationsApi);
   private readonly zone = inject(NgZone);
   readonly loading = signal(true);
   readonly busy = signal(false);
-  readonly view = signal<OperationsView>('orders');
+  readonly view = signal<OperationsView>('salon');
   readonly orders = signal<StaffOrder[]>([]);
   readonly summary = signal({ todayCount: 0, todayTotalCents: 0 });
   readonly online = signal(false);
@@ -87,6 +90,8 @@ export class OperationsPanel implements OnInit, OnDestroy {
   readonly statusFilter = signal<'all' | OrderStatus>('all');
   readonly selected = signal<StaffOrder | null>(null);
   readonly editor = signal<StaffOrder | 'new' | null>(null);
+  readonly editorTable = signal<string | null>(null);
+  readonly includeSalon = signal(false);
   readonly staffOrderMethod = staffOrderMethod;
   readonly staffOrderPayment = staffOrderPayment;
   readonly changing = signal(new Set<number>());
@@ -105,18 +110,25 @@ export class OperationsPanel implements OnInit, OnDestroy {
   readonly statuses = ORDER_STATUSES;
   readonly lanes = ORDER_STATUSES.slice(0, 3);
   readonly isAdmin = computed(() => this.api.user()?.role === 'admin');
+  readonly listedOrders = computed(() =>
+    this.includeSalon() ? this.orders() : this.orders().filter((order) => order.method !== 'table'),
+  );
   readonly counts = computed(
     () =>
       Object.fromEntries(
         this.statuses.map((status) => [
           status.id,
-          this.orders().filter((order) => order.status === status.id).length,
+          (this.view() === 'orders' ? this.listedOrders() : this.orders())
+            .filter((order) => order.status === status.id).length,
         ]),
       ) as Record<OrderStatus, number>,
   );
+  readonly outsidePending = computed(() =>
+    this.orders().filter((order) => order.method !== 'table' && order.status === 'pending').length,
+  );
   readonly filteredOrders = computed(() => {
     const search = this.search().trim().toLocaleLowerCase('es-PE');
-    return this.orders().filter(
+    return this.listedOrders().filter(
       (order) =>
         (this.statusFilter() === 'all' || order.status === this.statusFilter()) &&
         (!search ||
@@ -128,7 +140,8 @@ export class OperationsPanel implements OnInit, OnDestroy {
   readonly pageTitle = computed(
     () =>
       ({
-        orders: 'Salón y pedidos',
+        salon: 'Salón',
+        orders: 'Para llevar / Delivery',
         kitchen: 'Cocina en vivo',
         history: 'Historial de pedidos',
         users: 'Equipo y accesos',
@@ -137,13 +150,14 @@ export class OperationsPanel implements OnInit, OnDestroy {
       })[this.view()],
   );
   readonly navigation = [
-    { id: 'orders' as const, label: 'Salón y pedidos', icon: 'M8 3h8l4 4v14H4V3h4m0 5h8M8 12h8M8 16h5' },
+    { id: 'salon' as const, label: 'Salón', icon: 'M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18' },
+    { id: 'orders' as const, label: 'Para llevar / Delivery', icon: 'M8 3h8l4 4v14H4V3h4m0 5h8M8 12h8M8 16h5' },
+    { id: 'history' as const, label: 'Historial', icon: 'M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v5l3 2' },
     {
       id: 'kitchen' as const,
       label: 'Cocina',
       icon: 'M4 16h16M5 16a7 7 0 0 1 14 0M12 5V3M9 3h6M3 20h18',
     },
-    { id: 'history' as const, label: 'Historial', icon: 'M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v5l3 2' },
     {
       id: 'catalog' as const,
       label: 'Carta digital',
@@ -160,6 +174,17 @@ export class OperationsPanel implements OnInit, OnDestroy {
       icon: 'M15 21v-2a5 5 0 0 0-10 0v2M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M17 4a4 4 0 0 1 0 7M21 21v-2a5 5 0 0 0-4-4',
     },
   ];
+  readonly navGroups: { label: string; views: OperationsView[] }[] = [
+    { label: '', views: ['salon'] },
+    { label: 'Órdenes', views: ['orders', 'history', 'kitchen'] },
+    { label: 'Menú', views: ['catalog'] },
+    { label: 'Administración', views: ['reports', 'users'] },
+  ];
+  readonly collapsedGroups = signal<string[]>([]);
+  readonly visibleNav = computed(() => this.navGroups.map((group) => ({
+    label: group.label,
+    entries: this.navigation.filter((entry) => group.views.includes(entry.id) && this.canOpenView(entry.id)),
+  })).filter((group) => group.entries.length));
   historyDate = '';
   historySearch = '';
   private pollTimer?: number;
@@ -326,7 +351,7 @@ export class OperationsPanel implements OnInit, OnDestroy {
       pathname.replace(/\/$/, '') === '/panel-administrativo'
         ? 'catalog'
         : this.navigation.find((entry) => VIEW_FRAGMENTS[entry.id] === hash)?.id;
-    const fallback = this.isAdmin() ? 'orders' : 'kitchen';
+    const fallback = this.isAdmin() ? 'salon' : 'kitchen';
     const view = requested && this.canOpenView(requested) ? requested : fallback;
     const url = this.viewUrl(view);
     if (`${pathname}${hash}` !== url) window.history.replaceState(null, '', url);
@@ -343,11 +368,11 @@ export class OperationsPanel implements OnInit, OnDestroy {
   }
 
   canOpenView(view: OperationsView): boolean {
-    return this.isAdmin() || (view !== 'users' && view !== 'catalog' && view !== 'reports');
+    return this.isAdmin() || view === 'orders' || view === 'history' || view === 'kitchen';
   }
 
   private async showView(view: OperationsView): Promise<void> {
-    if (view !== 'orders') this.editor.set(null);
+    if (view !== this.view()) this.editor.set(null);
     this.view.set(view);
     requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'instant' }));
     this.error.set('');
@@ -359,7 +384,16 @@ export class OperationsPanel implements OnInit, OnDestroy {
 
   selectStatus(status: 'all' | OrderStatus): void {
     this.statusFilter.set(status);
-    if (this.view() !== 'orders') void this.selectView('orders');
+    if (this.view() !== 'orders') {
+      this.includeSalon.set(true);
+      void this.selectView('orders');
+    }
+  }
+
+  toggleNavGroup(label: string): void {
+    this.collapsedGroups.update((groups) => groups.includes(label)
+      ? groups.filter((group) => group !== label)
+      : [...groups, label]);
   }
 
   laneOrders(status: OrderStatus): StaffOrder[] {
@@ -370,7 +404,8 @@ export class OperationsPanel implements OnInit, OnDestroy {
   statusLabel(status: OrderStatus): string {
     return this.statuses.find((option) => option.id === status)?.label ?? status;
   }
-  openEditor(order: StaffOrder | 'new'): void {
+  openEditor(order: StaffOrder | 'new', table: string | null = null): void {
+    this.editorTable.set(table);
     this.editor.set(order);
   }
 

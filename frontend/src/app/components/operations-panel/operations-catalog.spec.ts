@@ -47,6 +47,7 @@ describe('Local operations panel', () => {
         prices: DEFAULT_DAILY_PRICES,
       }),
       updateCatalogItem: jasmine.createSpy().and.callFake(async (item) => item),
+      orderModifiers: jasmine.createSpy().and.resolveTo({ modifiers: [] }),
     };
     const neon = jasmine.createSpyObj('Neon', ['restoreAdminSession', 'loadItems', 'updateItem']);
     TestBed.configureTestingModule({
@@ -58,6 +59,33 @@ describe('Local operations panel', () => {
     });
     return { local, neon };
   }
+
+  it('opens Salón by default and starts an order with the selected table', async () => {
+    configure('admin');
+    window.history.replaceState(null, '', '/administrar');
+    const fixture = TestBed.createComponent(OperationsPanel);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const panel = fixture.componentInstance;
+    const root: HTMLElement = fixture.nativeElement;
+    expect(window.location.hash).toBe('#salon');
+    expect(root.querySelectorAll('.salon-table').length).toBe(15);
+    panel.orders.set([{
+      id: 17, number: '0017', status: 'pending', method: 'table', tableLabel: '1',
+      customerName: '', customerPhone: '', payment: null, address: null, reference: null,
+      trackingId: 'test-order', subtotalCents: 0, packagingCents: 0, totalCents: 0, items: [],
+      createdAt: '2026-11-15T15:00:00Z', updatedAt: '2026-11-15T15:00:00Z',
+    }]);
+    fixture.detectChanges();
+    expect(root.querySelector('.salon-table.occupied')?.textContent).toContain('#0017');
+    root.querySelector<HTMLButtonElement>('[aria-label="Nuevo pedido en mesa M3"]')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(root.querySelector<HTMLInputElement>('dialog input[name="table"]')?.value).toBe('M3');
+    fixture.destroy();
+  });
 
   it('shares the local session and saves catalog edits through Laravel without a second login', async () => {
     const { local, neon } = configure('admin');

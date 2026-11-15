@@ -1,0 +1,36 @@
+@for (zone of zones(); track zone.name) {
+  <section class="salon-zone" [attr.aria-label]="zone.name">
+    <h2>{{ zone.name }} <span>{{ zone.tables.length }}</span></h2>
+    <div class="table-grid">
+      @for (table of zone.tables; track table.label) {
+        @let first = table.orders[0];
+        <article class="salon-table" [class.occupied]="first" [class.waiting]="!first && !online()">
+          <div class="table-heading">
+            <h3>{{ table.label }}</h3>
+            <span class="table-state">{{ first ? 'Ocupada' : online() ? 'Disponible' : 'Sin verificar' }}</span>
+          </div>
+          @if (first) {
+            <p class="table-time">Abierta a las {{ first.createdAt | date:'HH:mm':'-0500' }}</p>
+            <ul class="table-orders">
+              @for (order of table.orders; track order.id) {
+                <li>
+                  <button class="order-link" type="button" (click)="orderDetails.emit(order)">
+                    #{{ order.number }} <span [attr.data-status]="order.status">{{ statusLabel(order) }}</span>
+                  </button>
+                  @if (order.status === 'pending') {
+                    <button class="edit-link" type="button" [attr.aria-label]="'Editar pedido ' + order.number" (click)="editOrder.emit(order)">Editar</button>
+                  }
+                </li>
+              }
+            </ul>
+          }
+          @if (table.assignable) {
+            <button class="table-action" type="button" [disabled]="!online()" [attr.aria-label]="'Nuevo pedido en mesa ' + table.label" (click)="newOrder.emit(table.label)">
+              + Nuevo pedido
+            </button>
+          }
+        </article>
+      }
+    </div>
+  </section>
+}

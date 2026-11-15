@@ -17,25 +17,36 @@
       <a href="/" class="sidebar-logo"><img src="/brand/logo-full.png" alt="La Estación 365" /></a>
       <div class="sidebar-label">TU RESTAURANTE</div>
       <nav aria-label="Gestión del restaurante">
-        @for (entry of navigation; track entry.id) {
-          @if (canOpenView(entry.id)) {
-            <a
-              [href]="viewUrl(entry.id)"
-              [class.active]="view() === entry.id"
-              [attr.aria-label]="entry.label"
-              [attr.title]="entry.label"
-              [attr.aria-current]="view() === entry.id ? 'page' : null"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="entry.icon" /></svg
-              ><span class="nav-label">{{ entry.label }}</span>
-              <span class="nav-compact-label">{{
-                entry.id === 'catalog' ? 'Carta' : entry.label
-              }}</span>
-              @if (entry.id === 'orders' && counts().pending) {
-                <small>{{ counts().pending }}</small>
+        @for (group of visibleNav(); track group.label) {
+          <div class="nav-group" [class.grouped]="group.label" [class.collapsed]="collapsedGroups().includes(group.label)">
+            @if (group.label) {
+              <button class="nav-group-toggle" type="button"
+                [attr.aria-expanded]="!collapsedGroups().includes(group.label)"
+                (click)="toggleNavGroup(group.label)">
+                {{ group.label }} <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+              </button>
+            }
+            <div class="nav-group-links">
+              @for (entry of group.entries; track entry.id) {
+                <a
+                  [href]="viewUrl(entry.id)"
+                  [class.active]="view() === entry.id"
+                  [attr.aria-label]="entry.label"
+                  [attr.title]="entry.label"
+                  [attr.aria-current]="view() === entry.id ? 'page' : null"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="entry.icon" /></svg>
+                  <span class="nav-label">{{ entry.label }}</span>
+                  <span class="nav-compact-label">{{
+                    entry.id === 'catalog' ? 'Carta' : entry.id === 'orders' ? 'Pedidos' : entry.label
+                  }}</span>
+                  @if (entry.id === 'orders' && outsidePending()) {
+                    <small>{{ outsidePending() }}</small>
+                  }
+                </a>
               }
-            </a>
-          }
+            </div>
+          </div>
         }
       </nav>
       <div class="sidebar-bottom">
@@ -89,7 +100,9 @@
                         ? 'Actualiza platos, fotografías, precios y disponibilidad desde aquí.'
                         : view() === 'reports'
                           ? 'Consulta qué platos tienen más demanda en tu restaurante.'
-                          : 'Todo lo que necesitas para atender tu próxima orden.'
+                          : view() === 'salon'
+                            ? 'Consulta las mesas y toma pedidos por zona.'
+                            : 'Gestiona pedidos para recojo y entrega a domicilio.'
               }}
             </p>
           </div>
@@ -188,19 +201,30 @@
           </section>
         }
 
+        @if (isAdmin() && editor(); as draft) {
+          <app-operations-order-form
+            [order]="draft === 'new' ? null : draft"
+            [initialTable]="editorTable()"
+            [initialMethod]="view() === 'salon' ? 'table' : 'pickup'"
+            (saved)="orderSaved($event)"
+            (closed)="editor.set(null)"
+          />
+        }
+
+        @if (view() === 'salon') {
+          <app-operations-salon [orders]="orders()" [online]="online()"
+            (newOrder)="openEditor('new', $event)"
+            (orderDetails)="openDetails($event)"
+            (editOrder)="openEditor($event)"
+          />
+        }
+
         @if (view() === 'orders') {
-          @if (isAdmin() && editor(); as draft) {
-            <app-operations-order-form
-              [order]="draft === 'new' ? null : draft"
-              (saved)="orderSaved($event)"
-              (closed)="editor.set(null)"
-            />
-          }
           <section class="ops-card orders-card">
             <div class="card-title">
               <div>
                 <h2>La atención de hoy</h2>
-                <p>{{ orders().length }} pedidos en curso</p>
+                <p>{{ listedOrders().length }} pedidos en curso</p>
               </div>
               @if (isAdmin()) {
                 <button class="ops-primary" type="button" (click)="openEditor('new')">+ Nuevo pedido</button>
@@ -213,7 +237,7 @@
                   [class.selected]="statusFilter() === 'all'"
                   (click)="statusFilter.set('all')"
                 >
-                  Todos <small>{{ orders().length }}</small>
+                  Todos <small>{{ listedOrders().length }}</small>
                 </button>
                 @for (status of lanes; track status.id) {
                   <button
@@ -237,6 +261,10 @@
                   (ngModelChange)="search.set($event)"
               /></label>
             </div>
+            <label class="include-salon">
+              <input #salonFilter type="checkbox" [checked]="includeSalon()" (change)="includeSalon.set(salonFilter.checked)" />
+              Incluir pedidos de salón
+            </label>
             <div class="ops-table-wrap">
               <table class="ops-table">
                 <thead>
@@ -310,19 +338,19 @@
                 </svg>
                 <h3>
                   {{
-                    orders().length
+                    listedOrders().length
                       ? 'No encontramos ese pedido'
                       : 'La cocina está lista para empezar'
                   }}
                 </h3>
                 <p>
                   {{
-                    orders().length
+                    listedOrders().length
                       ? 'Prueba otro nombre, número o estado.'
                       : 'Los pedidos confirmados desde la carta aparecerán aquí automáticamente.'
                   }}
                 </p>
-                @if (!orders().length) {
+                @if (!listedOrders().length) {
                   <a href="/" target="_blank" class="ops-primary" rel="noopener"
                     >Abrir carta digital <span>↗</span></a
                   >

@@ -1,0 +1,88 @@
+:host { display: grid; gap: 2rem; }
+
+h2, h3, p { margin: 0; }
+h2 {
+  display: flex;
+  align-items: center;
+  gap: .65rem;
+  margin-bottom: .85rem;
+  font-size: 1.1rem;
+}
+h2 span {
+  min-width: 1.6rem;
+  padding: .25rem;
+  border-radius: 2rem;
+  background: #e4eee9;
+  text-align: center;
+  font-size: .8rem;
+}
+.table-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  gap: 1rem;
+}
+.salon-table {
+  display: flex;
+  flex-direction: column;
+  gap: .65rem;
+  min-width: 0;
+  min-height: 156px;
+  padding: 1rem;
+  border: 1px solid #a3ccb3;
+  border-radius: .9rem;
+  color: #183a33;
+  background: #e7f6ed;
+}
+.salon-table.occupied { border-color: #e3ada7; background: #fff0ee; }
+.salon-table.waiting { border-color: #d1dbd6; background: #eff3f1; }
+.table-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .4rem;
+}
+h3 { font-size: 1.1rem; overflow-wrap: anywhere; }
+.table-state {
+  padding: .25rem .5rem;
+  border-radius: 2rem;
+  color: #205938;
+  background: #ccebd8;
+  font-size: .72rem;
+  font-weight: 750;
+}
+.occupied .table-state { color: #8c2b25; background: #f8d0cb; }
+.waiting .table-state { color: #3d5650; background: #e1e9e4; }
+.table-time { color: #4b5f57; font-size: .8rem; }
+.table-orders { display: grid; gap: .2rem; margin: 0; padding: 0; list-style: none; }
+.table-orders li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .25rem .5rem; }
+button {
+  min-height: 36px;
+  border: 1px solid transparent;
+  border-radius: .45rem;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+button:focus-visible { outline: 2px solid #246b52; outline-offset: 2px; }
+.order-link { display: inline-flex; flex-wrap: wrap; gap: .35rem; align-items: center; padding: 0 .3rem; }
+.order-link:hover, .edit-link:hover { text-decoration: underline; }
+.order-link span { padding: .18rem .35rem; border-radius: .35rem; background: #f8e4bc; color: #6a4312; }
+.order-link span[data-status='preparing'] { background: #d9eaf7; color: #194f72; }
+.order-link span[data-status='ready'] { background: #d4ecda; color: #245437; }
+.table-action { min-height: 44px; margin-top: auto; border-color: #aac9b7; background: white; }
+.table-action:hover:not(:disabled) { border-color: #267249; }
+.table-action:disabled { cursor: default; opacity: .6; }
+
+@media (min-width: 1100px) {
+  .table-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 520px) {
+  .table-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+  .salon-table { padding: .75rem; min-height: 135px; }
+  .table-orders button { min-height: 44px; }
+}

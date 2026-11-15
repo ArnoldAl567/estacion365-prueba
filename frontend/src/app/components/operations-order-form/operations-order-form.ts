@@ -24,6 +24,8 @@ interface DraftLine {
 })
 export class OperationsOrderForm implements OnInit, AfterViewInit {
   readonly order = input.required<StaffOrder | null>();
+  readonly initialTable = input<string | null>(null);
+  readonly initialMethod = input<StaffOrder['method']>('table');
   readonly saved = output<StaffOrder>();
   readonly closed = output<void>();
   readonly categories = [...CATEGORIES, ...DAILY_ADDON_CATEGORIES];
@@ -84,6 +86,9 @@ export class OperationsOrderForm implements OnInit, AfterViewInit {
         key: this.nextKey++,
         modifiers: (item.modifiers ?? []).join(', '),
       }));
+    } else {
+      this.customer.method = this.initialMethod();
+      this.customer.tableLabel = this.initialTable() ?? '';
     }
     this.initialDraft = JSON.stringify(this.buildDraft());
     void this.loadCatalog();
