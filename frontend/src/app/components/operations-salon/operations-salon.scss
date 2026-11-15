@@ -77,8 +77,13 @@ button:disabled { opacity: .6; cursor: default; }
 .table-action { min-height: 44px; margin-top: auto; border-color: #aac9b7; background: white; }
 .table-action:hover:not(:disabled) { border-color: #267249; }
 .table-action:disabled { cursor: default; opacity: .6; }
-.salon-tools { display: flex; flex-wrap: wrap; gap: .65rem; align-items: center; justify-content: flex-end; }
+.salon-tools { display: flex; flex-wrap: wrap; gap: .8rem; align-items: center; justify-content: flex-end; }
 .salon-tools p { margin-right: auto; }
+.occupancy-summary { display: flex; flex-wrap: wrap; gap: .6rem; margin: 0 auto 0 0; }
+.occupancy-summary > div { display: flex; align-items: baseline; gap: .5rem; padding: 9px 12px; border: 1px solid #c9ddcf; border-radius: 9px; color: #234e39; background: #f0f8f2; }
+.occupancy-summary > div + div { color: #7a3536; border-color: #ead3d2; background: #fdf2f1; }
+.occupancy-summary dt { font-size: .78rem; font-weight: 650; }
+.occupancy-summary dd { margin: 0; font-size: 1rem; font-weight: 750; }
 .configure-button, .save-layout, .discard-layout {
   min-height: 44px;
   padding-inline: .9rem;
@@ -166,6 +171,7 @@ button:disabled { opacity: .6; cursor: default; }
   .table-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
   .salon-table { padding: .75rem; min-height: 135px; }
   .table-orders button { min-height: 44px; }
+  .salon-tools { justify-content: flex-start; }
 }
 
 @media (max-width: 680px) {

@@ -1,6 +1,6 @@
 @let order = data();
-<div class="detail-overlay" (click)="closed.emit()"></div>
-<aside class="order-detail" role="dialog" aria-modal="true" aria-labelledby="order-detail-title">
+<dialog #orderDetail class="order-detail" aria-labelledby="order-detail-title"
+  (close)="closed.emit()" (click)="$event.target === orderDetail && orderDetail.close()">
   <header>
     <div>
       <span class="eyebrow">DETALLE DEL PEDIDO</span>
@@ -11,7 +11,8 @@
       id="close-order-detail"
       class="icon-button"
       type="button"
-      (click)="closed.emit()"
+      (click)="orderDetail.close()"
+      autofocus
       aria-label="Cerrar detalle del pedido"
     >
       ×
@@ -112,4 +113,4 @@
       </button>
     </footer>
   }
-</aside>
+</dialog>

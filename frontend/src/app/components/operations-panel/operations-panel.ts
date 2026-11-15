@@ -1,4 +1,4 @@
-import { CurrencyPipe, DatePipe, registerLocaleData } from '@angular/common';
+import { CurrencyPipe, DatePipe, NgTemplateOutlet, registerLocaleData } from '@angular/common';
 import localeEsPe from '@angular/common/locales/es-PE';
 import {
   Component,
@@ -32,6 +32,7 @@ import { OperationsKitchen } from '../operations-kitchen/operations-kitchen';
 import { OperationsOrderDetail } from '../operations-order-detail/operations-order-detail';
 import { OperationsReports } from '../operations-reports/operations-reports';
 import { OperationsOrderForm } from '../operations-order-form/operations-order-form';
+import { OperationsTheme } from './operations-theme';
 import { OperationsSalon } from '../operations-salon/operations-salon';
 
 registerLocaleData(localeEsPe);
@@ -62,12 +63,14 @@ interface StaffForm {
     FormsModule,
     CurrencyPipe,
     DatePipe,
+    NgTemplateOutlet,
     OperationsAccess,
     AdminPanel,
     OperationsKitchen,
     OperationsOrderDetail,
     OperationsReports,
     OperationsOrderForm,
+    OperationsTheme,
     OperationsSalon,
   ],
   providers: [{ provide: CatalogApiService, useClass: LocalCatalogAdapter }],
@@ -99,6 +102,7 @@ export class OperationsPanel implements OnInit, OnDestroy {
   readonly cancellation = signal<StaffOrder | null>(null);
   readonly cancellationError = signal('');
   private readonly cancellationDialog = viewChild<ElementRef<HTMLDialogElement>>('cancellationDialog');
+  private readonly navigationDialog = viewChild<ElementRef<HTMLDialogElement>>('navigationDialog');
   cancellationReason = '';
   readonly history = signal<StaffOrder[]>([]);
   readonly historyLoading = signal(false);
@@ -344,6 +348,14 @@ export class OperationsPanel implements OnInit, OnDestroy {
     return `/administrar${VIEW_FRAGMENTS[view]}`;
   }
 
+  openNavigation(): void {
+    this.navigationDialog()?.nativeElement.showModal();
+  }
+
+  closeNavigation(): void {
+    this.navigationDialog()?.nativeElement.close();
+  }
+
   @HostListener('window:hashchange')
   async syncViewFromUrl(): Promise<void> {
     if (!this.api.user()) return;
@@ -491,7 +503,6 @@ export class OperationsPanel implements OnInit, OnDestroy {
     try {
       const result = await this.api.detail(order.id);
       if (this.selected()?.id === order.id) this.selected.set(result.order);
-      requestAnimationFrame(() => document.getElementById('close-order-detail')?.focus());
     } catch (error) {
       this.error.set(this.message(error));
     }
@@ -697,26 +708,6 @@ export class OperationsPanel implements OnInit, OnDestroy {
     }
   }
 
-  @HostListener('document:keydown', ['$event']) onDetailKeydown(event: KeyboardEvent): void {
-    if (this.cancellationDialog()?.nativeElement.open || !this.selected()) return;
-    if (event.key === 'Escape') {
-      this.selected.set(null);
-      return;
-    }
-    if (event.key !== 'Tab') return;
-    const controls = document.querySelectorAll<HTMLElement>(
-      '.order-detail button:not([disabled]), .order-detail a[href]',
-    );
-    const first = controls[0];
-    const last = controls[controls.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last?.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first?.focus();
-    }
-  }
   private message(error: unknown): string {
     return error instanceof Error ? error.message : 'No se pudo completar la operación.';
   }

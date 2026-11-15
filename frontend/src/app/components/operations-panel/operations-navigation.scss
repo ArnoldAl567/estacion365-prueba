@@ -38,11 +38,56 @@
   .ops-sidebar .nav-group.grouped a { min-height: 52px; gap: 5px; }
 }
 
-@media (max-width: 720px) {
-  .ops-sidebar .nav-group,
-  .ops-sidebar .nav-group .nav-group-links,
-  .ops-sidebar .nav-group.grouped .nav-group-links {
-    display: contents;
+.workspace-location { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ops-topbar .navigation-trigger, .ops-layout .mobile-navigation { display: none; }
+
+@media (max-width: 880px) {
+  .ops-layout { display: block; padding-bottom: 0; }
+  .ops-layout .desktop-navigation { display: none; }
+  .ops-topbar .navigation-trigger { display: grid; width: 44px; height: 44px; }
+  .ops-layout .mobile-navigation[open] {
+    position: fixed;
+    inset: 0 auto 0 0;
+    display: flex;
+    width: min(320px, calc(100% - 36px));
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+    border: 0;
+    border-radius: 0 18px 18px 0;
+    box-shadow: 18px 0 56px #102d3b45;
+    animation: nav-enter .22s var(--ease) both;
   }
-  .ops-sidebar .nav-group.grouped a { min-height: 64px; }
+  .mobile-navigation::backdrop { background: #10233299; }
+  .mobile-navigation-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 18px;
+    color: white;
+  }
+  .mobile-navigation-header h2 { font-size: 1.06rem; }
+  .ops-layout .mobile-navigation nav { grid-auto-flow: row; grid-auto-columns: auto; gap: 10px; overflow: auto; }
+  .mobile-navigation .nav-group-toggle { display: flex; min-height: 44px; }
+  .mobile-navigation .nav-group.grouped .nav-group-links { margin-left: 12px; padding-left: 6px; border-left: 1px solid #b9d7df3b; }
+  .mobile-navigation .nav-group.collapsed .nav-group-links { display: none; }
+  .ops-layout .mobile-navigation .nav-label, .ops-layout .mobile-navigation .sidebar-bottom { display: block; }
+  .ops-layout .mobile-navigation .nav-compact-label { display: none; }
+  .ops-layout .mobile-navigation nav a {
+    min-height: 45px;
+    flex-direction: row;
+    justify-content: start;
+    gap: 12px;
+    padding: 8px 12px;
+  }
+  .mobile-navigation nav a small { display: block; position: static; }
 }
+
+@media (min-width: 881px) {
+  .ops-layout .mobile-navigation[open] { display: flex; inset: 0 auto 0 0; margin: 0; border: 0; width: 250px; }
+}
+
+@keyframes nav-enter { from { opacity: .7; transform: translateX(-20px); } }

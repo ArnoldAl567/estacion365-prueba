@@ -1,4 +1,10 @@
 <div class="salon-tools">
+  @if (layout() && online()) {
+    <dl class="occupancy-summary" aria-label="Ocupación de las mesas configuradas">
+      <div><dt>Disponibles</dt><dd>{{ occupancy().available }}</dd></div>
+      <div><dt>Ocupadas</dt><dd>{{ occupancy().occupied }}</dd></div>
+    </dl>
+  }
   @if (error()) {
     <p role="alert">{{ error() }} <button type="button" (click)="loadLayout()">Reintentar</button></p>
   } @else if (!layout()) {

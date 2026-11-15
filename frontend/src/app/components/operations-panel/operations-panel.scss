@@ -1,8 +1,8 @@
 :host {
-  --ops-ink: #183a3b;
-  --ops-muted: #4b635b;
-  --ops-green: #297546;
-  --ops-line: #e5ece7;
+  --ops-ink: var(--ui-ink);
+  --ops-muted: var(--ui-muted);
+  --ops-green: var(--ui-accent);
+  --ops-line: var(--ui-line);
   display: block;
   color: var(--ops-ink);
   font-family: var(--font-body);
@@ -182,7 +182,7 @@ svg {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 244px minmax(0, 1fr);
-  background: #f5f7f3;
+  background: var(--ui-canvas);
 }
 .ops-sidebar {
   position: sticky;
@@ -191,8 +191,8 @@ svg {
   display: flex;
   flex-direction: column;
   padding: 28px 18px 20px;
-  color: #a7bebc;
-  background: #12313b;
+  color: #cbdae3;
+  background: var(--ui-navy);
 }
 .sidebar-logo {
   display: block;
@@ -297,7 +297,7 @@ svg {
   min-width: 0;
 }
 .ops-topbar {
-  min-height: 79px;
+  min-height: 70px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -378,11 +378,11 @@ svg {
 }
 .ops-heading h1 {
   margin: 11px 0 9px;
-  color: #1f3d33;
-  font-size: 34px;
+  color: var(--ui-ink);
+  font-size: clamp(1.85rem, 3.2vw, 2.6rem);
   line-height: 1.16;
   font-weight: 750;
-  letter-spacing: -0.7px;
+  letter-spacing: -.04em;
 }
 .ops-heading p {
   color: var(--ops-muted);
@@ -485,23 +485,22 @@ button.metric:hover {
   background: #67a96e;
 }
 .metric > strong {
-  color: #284338;
+  color: var(--ui-ink);
   font-size: 37px;
   line-height: 1;
   letter-spacing: -1.8px;
-  font-weight: 650;
+  font-weight: 750;
 }
 .metric > small {
   color: var(--ops-muted);
   font-size: 13px;
 }
 .metric.today {
-  border-color: #d5e4c9;
-  background: #eaf3e2;
+  border-color: #193f52;
+  background: linear-gradient(140deg, #16384d, #224e56);
 }
-.metric.today small {
-  color: var(--ops-muted);
-}
+.metric.today :is(strong, .metric-heading, svg) { color: #f0faf9; }
+.metric.today small { color: #d1e3e6; }
 .ops-card {
   min-width: 0;
   overflow: hidden;
@@ -592,9 +591,9 @@ button.metric:hover {
 }
 .ops-table th {
   padding: 13px 20px;
-  color: var(--ops-muted);
-  background: #f8faf7;
-  border-block: 1px solid #edf1eb;
+  color: #375564;
+  background: #f0f5f8;
+  border-block: 1px solid var(--ui-line);
   font-size: 13px;
   letter-spacing: 0.7px;
   text-transform: uppercase;
@@ -606,7 +605,7 @@ button.metric:hover {
 }
 .ops-table td {
   padding: 20px;
-  border-bottom: 1px solid #f0f3ee;
+  border-bottom: 1px solid #e6edf1;
   color: var(--ops-muted);
   font-size: 14px;
 }
@@ -614,7 +613,7 @@ button.metric:hover {
   border-bottom: 0;
 }
 .ops-table tbody tr:hover {
-  background: #fcfdfa;
+  background: #f4f8fb;
 }
 .ops-table td > strong {
   display: block;

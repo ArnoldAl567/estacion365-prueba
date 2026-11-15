@@ -45,25 +45,27 @@ a {
   color: inherit;
 }
 /* Detalle y recorrido */
-.detail-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
+.order-detail::backdrop {
   background: #0e2b3c66;
   backdrop-filter: blur(3px);
 }
 .order-detail {
   position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 81;
+  inset: 0 0 0 auto;
   width: min(100%, 520px);
-  display: flex;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 16px 0 0 16px;
   flex-direction: column;
   background: #fff;
   box-shadow: -10px 0 70px #102a3a22;
 }
+.order-detail[open] { display: flex; animation: detail-enter .2s var(--ease) both; }
+@keyframes detail-enter { from { opacity: .75; transform: translateX(12px); } }
 .order-detail > header {
   display: flex;
   justify-content: space-between;

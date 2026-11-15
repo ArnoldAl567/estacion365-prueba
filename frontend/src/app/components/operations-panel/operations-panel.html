@@ -1,3 +1,4 @@
+<app-operations-theme>
 @if (loading()) {
   <main class="ops-loading">
     <img src="/brand/logo-full.png" alt="La Estación 365" /><span class="loader"></span>
@@ -12,10 +13,7 @@
     (retry)="initialize()"
   />
 } @else {
-  <div class="ops-layout">
-    <aside class="ops-sidebar">
-      <a href="/" class="sidebar-logo"><img src="/brand/logo-full.png" alt="La Estación 365" /></a>
-      <div class="sidebar-label">TU RESTAURANTE</div>
+  <ng-template #workspaceNavigation>
       <nav aria-label="Gestión del restaurante">
         @for (group of visibleNav(); track group.label) {
           <div class="nav-group" [class.grouped]="group.label" [class.collapsed]="collapsedGroups().includes(group.label)">
@@ -30,6 +28,7 @@
               @for (entry of group.entries; track entry.id) {
                 <a
                   [href]="viewUrl(entry.id)"
+                  (click)="closeNavigation()"
                   [class.active]="view() === entry.id"
                   [attr.aria-label]="entry.label"
                   [attr.title]="entry.label"
@@ -49,19 +48,32 @@
           </div>
         }
       </nav>
-      <div class="sidebar-bottom">
-        <div class="local-status">
-          <i></i>
-          <div><strong>Entorno local</strong><small>Pedidos y cocina</small></div>
-        </div>
-        <a href="/" target="_blank" rel="noopener">Abrir carta digital <span>↗</span></a>
-      </div>
+  </ng-template>
+  <div class="ops-layout">
+    <aside class="ops-sidebar desktop-navigation">
+      <a href="/" class="sidebar-logo"><img src="/brand/logo-full.png" alt="La Estación 365" /></a>
+      <div class="sidebar-label">Operación del restaurante</div>
+      <ng-container [ngTemplateOutlet]="workspaceNavigation" />
+      <div class="sidebar-bottom"><a href="/" target="_blank" rel="noopener">Abrir carta digital <span aria-hidden="true">↗</span></a></div>
     </aside>
+    <dialog class="ops-sidebar mobile-navigation" #navigationDialog aria-labelledby="navigation-title">
+      <div class="mobile-navigation-header">
+        <h2 id="navigation-title">La Estación 365</h2>
+        <button type="button" class="icon-button" (click)="closeNavigation()" aria-label="Cerrar menú">×</button>
+      </div>
+      <ng-container [ngTemplateOutlet]="workspaceNavigation" />
+      <div class="sidebar-bottom"><a href="/" target="_blank" rel="noopener">Abrir carta digital <span aria-hidden="true">↗</span></a></div>
+    </dialog>
 
     <div class="ops-workspace">
       <header class="ops-topbar">
-        <div class="breadcrumb">
+        <div class="workspace-location">
+          <button class="icon-button navigation-trigger" type="button" aria-haspopup="dialog" aria-label="Abrir menú" (click)="openNavigation()">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+          <div class="breadcrumb">
           Mi restaurante <span>/</span> <strong>{{ pageTitle() }}</strong>
+          </div>
         </div>
         <div class="topbar-account">
           <span class="staff-avatar">{{ api.user()?.name?.charAt(0) }}</span>
@@ -91,11 +103,11 @@
             <p>
               {{
                 view() === 'kitchen'
-                  ? 'Cada comanda en su lugar. Cada plato a su tiempo.'
+                  ? 'Organiza y actualiza las comandas activas.'
                   : view() === 'history'
                     ? 'Consulta los pedidos entregados y cancelados.'
                     : view() === 'users'
-                      ? 'Cada persona, con el acceso que necesita.'
+                      ? 'Administra las cuentas y los permisos del equipo.'
                       : view() === 'catalog'
                         ? 'Actualiza platos, fotografías, precios y disponibilidad desde aquí.'
                         : view() === 'reports'
@@ -225,7 +237,7 @@
           <section class="ops-card orders-card">
             <div class="card-title">
               <div>
-                <h2>La atención de hoy</h2>
+                <h2>Pedidos en curso</h2>
                 <p>{{ listedOrders().length }} pedidos en curso</p>
               </div>
               @if (isAdmin()) {
@@ -383,7 +395,6 @@
                   {{ pagination().total === 1 ? 'pedido encontrado' : 'pedidos encontrados' }}
                 </p>
               </div>
-              <span class="history-mark">PEDIDOS CERRADOS</span>
             </div>
             <form class="history-filters" (ngSubmit)="loadHistory()">
               <label
@@ -455,7 +466,9 @@
                 </tbody>
               </table>
             </div>
-            @if (!history().length && !historyLoading()) {
+            @if (historyLoading() && !history().length) {
+              <div class="ops-empty compact" role="status"><span class="ui-spinner" aria-hidden="true"></span> Buscando pedidos…</div>
+            } @else if (!history().length) {
               <div class="ops-empty compact">
                 <h3>No se encontraron pedidos cerrados</h3>
                 <p>Los pedidos pasan al historial cuando se entregan o se cancelan.</p>
@@ -487,7 +500,7 @@
             <section class="ops-card">
               <div class="card-title">
                 <div>
-                  <h2>Las personas detrás del servicio</h2>
+                  <h2>Usuarios del sistema</h2>
                   <p>Gestiona las cuentas de tu equipo.</p>
                 </div>
                 <button class="ops-primary" type="button" (click)="editUser()">
@@ -637,9 +650,6 @@
         @if (view() === 'reports' && isAdmin()) {
           <app-operations-reports />
         }
-        <footer class="ops-footer">
-          <span>LA ESTACIÓN 365</span><span>Un servicio pensado para disfrutar.</span>
-        </footer>
       </main>
     </div>
   </div>
@@ -687,3 +697,4 @@
     </form>
   </dialog>
 }
+</app-operations-theme>

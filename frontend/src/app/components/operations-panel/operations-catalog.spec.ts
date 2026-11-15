@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { INITIAL_CATALOG } from '../../data/catalog-seed';
 import { DEFAULT_DAILY_PRICES } from '../../models/catalog.models';
+import { StaffOrder } from '../../models/operations.models';
 import { CatalogApiService } from '../../services/catalog-api.service';
 import { LocalOperationsApi } from '../../services/local-operations-api.service';
 import { AdminPanel } from '../admin-panel/admin-panel';
@@ -11,6 +12,12 @@ import { OperationsPanel } from './operations-panel';
 
 describe('Local operations panel', () => {
   const soundKey = 'estacion-ops-sound';
+  const activeOrder: StaffOrder = {
+    id: 17, number: '0017', status: 'pending', method: 'table', tableLabel: '1',
+    customerName: '', customerPhone: '', payment: null, address: null, reference: null,
+    trackingId: 'test-order', subtotalCents: 0, packagingCents: 0, totalCents: 0, items: [],
+    createdAt: '2026-11-15T15:00:00Z', updatedAt: '2026-11-15T15:00:00Z',
+  };
   let originalUrl: string;
 
   beforeEach(() => { originalUrl = window.location.href; });
@@ -38,6 +45,9 @@ describe('Local operations panel', () => {
         orders: [], pagination: { page: 1, lastPage: 1, total: 0 },
       }),
       users: jasmine.createSpy().and.resolveTo({ users: [] }),
+      dishDemand: jasmine.createSpy().and.resolveTo({
+        from: '2026-11-01', to: '2026-11-15', orderCount: 0, rankings: { carta: [], fondos: [], entradas: [] },
+      }),
       catalog: jasmine.createSpy().and.resolveTo({
         items: [
           {
@@ -83,18 +93,76 @@ describe('Local operations panel', () => {
     const root: HTMLElement = fixture.nativeElement;
     expect(window.location.hash).toBe('#salon');
     expect(root.querySelectorAll('.salon-table').length).toBe(3);
-    panel.orders.set([{
-      id: 17, number: '0017', status: 'pending', method: 'table', tableLabel: '1',
-      customerName: '', customerPhone: '', payment: null, address: null, reference: null,
-      trackingId: 'test-order', subtotalCents: 0, packagingCents: 0, totalCents: 0, items: [],
-      createdAt: '2026-11-15T15:00:00Z', updatedAt: '2026-11-15T15:00:00Z',
-    }]);
+    panel.orders.set([activeOrder]);
     fixture.detectChanges();
     expect(root.querySelector('.salon-table.occupied')?.textContent).toContain('#0017');
     root.querySelector<HTMLButtonElement>('[aria-label="Nuevo pedido en mesa M3"]')!.click();
     fixture.detectChanges();
     await fixture.whenStable();
     expect(root.querySelector<HTMLInputElement>('dialog input[name="table"]')?.value).toBe('M3');
+    fixture.destroy();
+  });
+
+  it('opens the mobile navigation and retains the active route', async () => {
+    configure('kitchen');
+    window.history.replaceState(null, '', '/administrar#cocina');
+    const fixture = TestBed.createComponent(OperationsPanel);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const root: HTMLElement = fixture.nativeElement;
+    root.querySelector<HTMLButtonElement>('.navigation-trigger')!.click();
+    const dialog = root.querySelector<HTMLDialogElement>('.mobile-navigation')!;
+    expect(dialog.matches(':modal')).toBeTrue();
+    expect(dialog.querySelector('[aria-current="page"]')?.getAttribute('href')).toBe('/administrar#cocina');
+    expect(dialog.querySelector('[href="/administrar#equipo"]')).toBeNull();
+    dialog.querySelector<HTMLButtonElement>('[aria-label="Cerrar menú"]')!.click();
+    expect(dialog.open).toBeFalse();
+    fixture.destroy();
+  });
+
+  it('keeps the order detail open underneath the cancellation dialog', async () => {
+    configure('admin');
+    window.history.replaceState(null, '', '/administrar#pedidos');
+    const fixture = TestBed.createComponent(OperationsPanel);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.componentInstance.selected.set(activeOrder);
+    fixture.detectChanges();
+
+    const root: HTMLElement = fixture.nativeElement;
+    const detail = root.querySelector<HTMLDialogElement>('dialog.order-detail')!;
+    expect(detail.matches(':modal')).toBeTrue();
+    detail.querySelector<HTMLButtonElement>('.detail-cancel')!.click();
+    fixture.detectChanges();
+    const cancellation = root.querySelector<HTMLDialogElement>('dialog.cancel-dialog')!;
+    expect(cancellation.matches(':modal')).toBeTrue();
+    cancellation.querySelector<HTMLButtonElement>('button[type="button"]')!.click();
+    expect(cancellation.open).toBeFalse();
+    expect(detail.open).toBeTrue();
+    fixture.destroy();
+  });
+
+  it('keeps the history, team and reports reachable after changing the navigation', async () => {
+    const { local } = configure('admin');
+    window.history.replaceState(null, '', '/administrar#pedidos');
+    const fixture = TestBed.createComponent(OperationsPanel);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    for (const [view, heading] of [
+      ['history', 'Historial de pedidos'], ['users', 'Equipo y accesos'], ['reports', 'Reportes'],
+    ] as const) {
+      await fixture.componentInstance.selectView(view);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      expect((fixture.nativeElement as HTMLElement).querySelector('h1')?.textContent).toBe(heading);
+    }
+    expect(local.history).toHaveBeenCalled();
+    expect(local.users).toHaveBeenCalled();
+    expect(local.dishDemand).toHaveBeenCalled();
     fixture.destroy();
   });
 

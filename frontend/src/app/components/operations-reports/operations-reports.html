@@ -25,6 +25,9 @@
   }
 </section>
 
+@if (loading() && !report()) {
+  <div class="report-empty" role="status"><span class="ui-spinner" aria-hidden="true"></span> Consultando pedidos…</div>
+}
 @if (report(); as result) {
   <div class="report-summary" role="status">
     <span><strong>{{ result.orderCount | number: '1.0-0' : 'es-PE' }}</strong>

@@ -65,6 +65,12 @@ export class OperationsSalon implements OnInit {
     return zones;
   });
 
+  readonly occupancy = computed(() => {
+    const tables = this.zones().filter(({ id }) => id !== 'unassigned').flatMap(({ tables }) => tables);
+    const occupied = tables.filter(({ orders }) => orders.length > 0).length;
+    return { occupied, available: tables.length - occupied };
+  });
+
   ngOnInit(): void {
     void this.loadLayout();
   }

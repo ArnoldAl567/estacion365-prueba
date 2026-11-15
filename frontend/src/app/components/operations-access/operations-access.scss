@@ -1,8 +1,8 @@
 :host {
-  --ops-ink: #183a3b;
-  --ops-muted: #4b635b;
-  --ops-green: #297546;
-  --ops-line: #e5ece7;
+  --ops-ink: var(--ui-ink);
+  --ops-muted: var(--ui-muted);
+  --ops-green: var(--ui-accent);
+  --ops-line: var(--ui-line);
   display: block;
   color: var(--ops-ink);
   font-family: var(--font-body);
@@ -153,7 +153,7 @@ svg {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  background: #f7faf6;
+  background: var(--ui-canvas);
 }
 .access-story {
   position: relative;
@@ -164,7 +164,8 @@ svg {
   overflow: hidden;
   padding: 48px clamp(35px, 6vw, 100px);
   color: #fff;
-  background: radial-gradient(ellipse at 100% 100%, #2e674f, transparent 65%), #112f3a;
+  background: linear-gradient(155deg, #10283af5 20%, #163747df 56%, #10382be8),
+    url('/images/portada-estacion-365.webp') center / cover #10283a;
 }
 .access-story::after {
   content: '';
@@ -229,8 +230,11 @@ svg {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #d4e3df;
-  font-size: 15px;
+  padding: 7px 12px;
+  border: 1px solid #c3e6d045;
+  border-radius: 999px;
+  color: #e7f3ee;
+  font-size: .82rem;
 }
 .workflow i {
   color: #a8d68d;
@@ -250,7 +254,12 @@ svg {
   padding: 45px;
 }
 .login-box {
-  width: min(100%, 390px);
+  width: min(100%, 450px);
+  padding: clamp(22px, 3.5vw, 40px);
+  border: 1px solid var(--ui-line);
+  border-radius: 18px;
+  background: var(--ui-white);
+  box-shadow: var(--ui-panel-shadow);
 }
 .login-box h2 {
   margin: 15px 0 12px;
