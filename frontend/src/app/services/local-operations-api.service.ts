@@ -52,6 +52,7 @@ export class LocalOperationsApi {
     username: string,
     password: string,
     confirmation: string,
+    setupCode?: string,
   ): Promise<void> {
     this.applySession(
       await this.request<SessionResponse>('/setup', 'POST', {
@@ -59,6 +60,7 @@ export class LocalOperationsApi {
         username,
         password,
         password_confirmation: confirmation,
+        setup_code: setupCode,
       }),
     );
   }
@@ -230,7 +232,10 @@ export class LocalOperationsApi {
         await this.bootstrap();
         return this.request(path, method, body, false);
       }
-      const data = await response.json().catch(() => ({}));
+      if (!(response.headers.get('Content-Type') ?? '').includes('application/json')) {
+        throw new OperationsError('El servidor de pedidos no respondió. Inténtalo de nuevo en un momento.', response.status);
+      }
+      const data = await response.json();
       if (!response.ok) {
         if (response.status === 401) this.user.set(null);
         const messages = data.errors ? Object.values(data.errors).flat() : [];
@@ -243,7 +248,7 @@ export class LocalOperationsApi {
     } catch (error) {
       if (error instanceof OperationsError) throw error;
       throw new OperationsError(
-        'No se pudo conectar con el sistema local. Comprueba que Laravel esté en ejecución y vuelve a intentar.',
+        'No se pudo conectar con el servidor de pedidos. Vuelve a intentar.',
         0,
       );
     } finally {

@@ -1,0 +1,12 @@
+.git
+.vercel
+**/.env*
+**/node_modules
+**/.angular
+**/dist
+backend/vendor
+backend/.local-postgres
+backend/storage/**/*
+!backend/storage/**/.gitignore
+source-images
+video-demo

@@ -228,6 +228,7 @@ export class OperationsPanel implements OnInit, OnDestroy {
           credentials.username,
           credentials.password,
           credentials.confirmation,
+          credentials.setupCode,
         );
       await this.afterLogin();
     } catch (error) {

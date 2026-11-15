@@ -21,6 +21,12 @@ class SessionController extends Controller
 
     public function setup(Request $request): array
     {
+        if (config('restaurant.cloud_staging')) {
+            $code = config('restaurant.setup_code');
+            $provided = $request->input('setup_code');
+            abort_unless(is_string($code) && $code !== '' && is_string($provided) && hash_equals($code, $provided), 403, 'Ingresa el código de activación del entorno de pruebas.');
+        }
+
         if (is_string($request->input('name'))) {
             $request->merge(['name' => trim($request->input('name'))]);
         }

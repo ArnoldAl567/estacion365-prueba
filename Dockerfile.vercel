@@ -1,0 +1,19 @@
+FROM node:22-alpine AS frontend
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY frontend ./frontend
+RUN npm run build
+
+FROM dunglas/frankenphp:1-php8.4-alpine
+WORKDIR /app/backend
+RUN install-php-extensions pdo_pgsql gd mbstring
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
+COPY backend/composer.json backend/composer.lock ./
+RUN composer install --no-dev --no-interaction --no-progress --prefer-dist --no-scripts --optimize-autoloader
+COPY backend ./
+RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/views bootstrap/cache && composer dump-autoload --no-dev --optimize
+COPY --from=frontend /app/frontend/dist/sabor-a-mar/browser /app/frontend
+COPY Caddyfile /etc/caddy/Caddyfile
+ENV APP_ENV=staging APP_DEBUG=false APP_URL=https://estacion365-prueba.vercel.app DB_CONNECTION=pgsql DB_SSLMODE=require LOG_CHANNEL=stderr SESSION_DRIVER=database SESSION_COOKIE=estacion_prueba_web SESSION_SECURE_COOKIE=true CACHE_STORE=database ESTACION_CLOUD_STAGING=true
+CMD ["frankenphp", "run", "--config", "/etc/caddy/Caddyfile"]

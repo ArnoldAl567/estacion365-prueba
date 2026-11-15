@@ -115,22 +115,32 @@ class CatalogController extends Controller
             imagedestroy($source);
         }
         abort_if($encoded === null, 422, 'La fotografía tiene demasiado detalle. Prueba con otra.');
-        $filename = Str::uuid().'.webp';
-        abort_unless(Storage::disk('public')->put('catalog/'.$filename, $encoded), 500, 'No se pudo guardar la fotografía en esta computadora.');
+        $id = (string) Str::uuid();
+        $filename = $id.'.webp';
+        if (config('restaurant.cloud_staging')) {
+            DB::table('catalog_images')->insert(['id' => $id, 'webp_base64' => base64_encode($encoded)]);
+        } else {
+            abort_unless(Storage::disk('public')->put('catalog/'.$filename, $encoded), 500, 'No se pudo guardar la fotografía en esta computadora.');
+        }
 
         return ['url' => '/local-api/images/'.$filename];
     }
 
     public function image(string $filename)
     {
-        $disk = Storage::disk('public');
-        abort_unless($disk->exists('catalog/'.$filename), 404);
-
-        return response()->file($disk->path('catalog/'.$filename), [
+        $headers = [
             'Content-Type' => 'image/webp',
             'Cache-Control' => 'public, max-age=31536000, immutable',
             'X-Content-Type-Options' => 'nosniff',
-        ]);
+        ];
+        if (config('restaurant.cloud_staging')) {
+            $stored = DB::table('catalog_images')->where('id', substr($filename, 0, -5))->value('webp_base64');
+            abort_unless(is_string($stored), 404);
+            return response(base64_decode($stored, true), 200, $headers);
+        }
+        $disk = Storage::disk('public');
+        abort_unless($disk->exists('catalog/'.$filename), 404);
+        return response()->file($disk->path('catalog/'.$filename), $headers);
     }
 
     private function fields(Request $request, string $kind, bool $creating): array
@@ -167,8 +177,10 @@ class CatalogController extends Controller
             $url = $data['image_url'];
             $valid = $url === null || preg_match('~^/?images/[a-zA-Z0-9/_\-.]+$~', $url)
                 || (filter_var($url, FILTER_VALIDATE_URL) && parse_url($url, PHP_URL_SCHEME) === 'https');
-            if ($url && preg_match('~^/local-api/images/([0-9a-f-]{36}\.webp)$~', $url, $matches)) {
-                $valid = Storage::disk('public')->exists('catalog/'.$matches[1]);
+            if ($url && preg_match('~^/local-api/images/([0-9a-f-]{36})\.webp$~', $url, $matches)) {
+                $valid = config('restaurant.cloud_staging')
+                    ? DB::table('catalog_images')->where('id', $matches[1])->exists()
+                    : Storage::disk('public')->exists('catalog/'.$matches[1].'.webp');
             }
             if (! $valid) {
                 throw ValidationException::withMessages(['image_url' => 'Sube una fotografía o usa una dirección HTTPS válida.']);

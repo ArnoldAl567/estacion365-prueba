@@ -22,7 +22,7 @@
         {{
           initialized()
             ? 'Ingresa con la cuenta que te asignó el administrador.'
-            : 'Crea la cuenta administradora de este sistema local.'
+            : 'Crea la primera cuenta administradora.'
         }}
       </p>
       @if (error()) {
@@ -32,6 +32,10 @@
       }
       <form (ngSubmit)="submit()">
         @if (!initialized()) {
+          @if (cloudStaging) {
+            <label for="setup-code">Código de activación</label>
+            <input id="setup-code" name="setupCode" type="password" required autocomplete="off" [(ngModel)]="login.setupCode" />
+          }
           <label for="setup-name">Tu nombre</label
           ><input
             id="setup-name"
@@ -101,7 +105,7 @@
         </button>
       </form>
       <a class="back-to-menu" href="/">← Volver a la carta digital</a>
-      <p class="local-note"><span></span> Entorno de trabajo local</p>
+      <p class="local-note"><span></span> {{ cloudStaging ? 'Entorno de pruebas' : 'Entorno de trabajo local' }}</p>
     </div>
   </section>
 </main>

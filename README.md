@@ -1,5 +1,11 @@
 # La Estación 365 — carta digital
 
+## Entorno de pruebas en Vercel
+
+El proyecto `estacion365-prueba` sirve Angular y la API de Laravel desde un contenedor en `https://estacion365-prueba.vercel.app`. El panel está en `/administrar`. Las variables sensibles `DB_URL`, `APP_KEY` y `ESTACION_SETUP_CODE` se configuran en Vercel. `DB_URL` corresponde a la base Neon independiente `estacion365_prueba`.
+
+Si la base está vacía, aplica las migraciones de Laravel y carga el catálogo con `LocalCatalogSeeder` antes de abrir el panel. La primera cuenta requiere el código de activación. Las cuentas siguientes se administran desde el panel. Las fotos nuevas de este entorno se guardan en Neon y se sirven con caché desde Laravel.
+
 Carta pública creada con Angular. Incluye platos a la carta, menú del día, búsqueda, carrito y preparación del pedido por WhatsApp. El panel `/panel-administrativo` permite actualizar el catálogo en PostgreSQL mediante Neon Auth y Data API, sin alojar un servidor Laravel.
 
 ## Estructura del proyecto
