@@ -1,0 +1,82 @@
+# La Estación 365 — carta digital
+
+Carta pública creada con Angular. Incluye platos a la carta, menú del día, búsqueda, carrito y preparación del pedido por WhatsApp. El panel `/panel-administrativo` permite actualizar el catálogo en PostgreSQL mediante Neon Auth y Data API, sin alojar un servidor Laravel.
+
+## Estructura del proyecto
+
+- [`frontend/`](frontend/) contiene Angular, su configuración y los recursos públicos. Las pantallas están en `frontend/src/app/components/`.
+- [`backend/`](backend/) contiene Laravel. Las rutas de la API están en `backend/routes/web.php` y las migraciones de PostgreSQL en `backend/database/migrations/`.
+- [`api/`](api/) contiene la función de imágenes de Vercel y [`neon/`](neon/) contiene el SQL del catálogo publicado.
+
+## Nuevo sistema local de pedidos y cocina
+
+La versión local incorpora **Angular + Laravel + PostgreSQL** en `/administrar`: pedidos, comandas de cocina, estados, historial y cuentas de administrador o cocina. En localhost, el carrito confirma pedidos directamente en Laravel y permite seguir su preparación. El sitio publicado conserva su funcionamiento actual.
+
+Abre dos terminales en la raíz del proyecto. Ejecuta `npm run api:local` en una y `npm start` en la otra. Entra a `http://127.0.0.1:4201/administrar` y crea el primer administrador si todavía no existe. El catálogo local es una copia independiente de Neon.
+
+Consulta [la guía del sistema local](backend/README.md) para requisitos, acceso, pruebas, base de datos y respaldo. Esta implementación se está trabajando localmente; no se ha publicado.
+
+El panel del catálogo ahora está integrado en **Carta digital**, dentro de `/administrar`, con la misma cuenta administradora. Permite agregar platos, editar fotos, precios y disponibilidad, y ajustar los precios de los menús. Guarda los datos y las fotos localmente; respeta el límite de 250 productos. En localhost, `/panel-administrativo` también lleva a este sistema. Las instrucciones de Neon siguientes corresponden exclusivamente a la versión publicada.
+
+## Ejecutar el proyecto
+
+Requiere Node.js y npm. En la raíz del proyecto:
+
+1. `npm install`
+2. `npm start` y abre `http://127.0.0.1:4201/`
+3. `npm run build` para generar el sitio estático en `frontend/dist/sabor-a-mar/browser/`
+4. `npm test -- --watch=false --browsers=ChromeHeadless` para ejecutar las pruebas
+
+El sitio se publica en Vercel. Cuando Neon está conectado, los cambios hechos en el panel aparecen en la carta sin recompilar el frontend. `vercel.json` permite abrir directamente `/panel-administrativo` en Vercel. La función `api/catalog-image.ts` guarda las fotografías en Vercel Blob; requiere que el almacén público Blob esté conectado al proyecto y que Vercel suministre `BLOB_READ_WRITE_TOKEN` a la función. El token nunca va en Angular ni en Git.
+
+## Conexión actual con Neon
+
+El proyecto Neon **`young-cell-49382492`**, rama **production**, base **neondb**, ya tiene Neon Auth, Data API, las tablas y las reglas de acceso. Se cargaron **47 productos a la carta, 16 opciones adicionales, 13 fondos y 7 entradas**. Las dos URL públicas están en [`frontend/src/app/config/neon.config.ts`](frontend/src/app/config/neon.config.ts). La carta lee los platos disponibles desde Neon al abrirse y comprueba cambios cada cinco minutos mientras la pestaña está visible. También comprueba al recuperar el foco si han pasado cinco minutos desde la última actualización.
+
+Para acceder a `/panel-administrativo`, usa el usuario **Estacion365** y la contraseña configurada en Neon Auth. El alias y su correo asociado se encuentran en [`frontend/src/app/config/admin-login.config.ts`](frontend/src/app/config/admin-login.config.ts); ese archivo forma parte del frontend público, así que nunca guardes allí la contraseña. Para crear o cambiar la contraseña, pulsa **Crear o recuperar contraseña**: Neon envía un enlace al correo administrador y el dueño la establece directamente en la página. El enlace solo funciona si la dirección de la carta está autorizada en **Neon Auth → Domains**.
+
+Si alguna vez se configura otro proyecto Neon:
+
+1. Activa **Neon Auth (Managed Better Auth)** y **Postgres database → Data API** en la misma rama y base de datos.
+2. Ejecuta [`neon/schema.sql`](neon/schema.sql), [`neon/catalog-capacity.sql`](neon/catalog-capacity.sql) y luego [`neon/seed.sql`](neon/seed.sql) en SQL Editor. La carga no sobrescribe ediciones existentes. Tras cambios de estructura, pulsa **Refresh schema cache** en Data API.
+3. Crea la cuenta en Neon Auth y autoriza su identificador con `insert into public.catalog_admins (user_id) select id from neon_auth."user" where email = 'CORREO-ADMIN' on conflict do nothing;`. El panel no ofrece registro público y las reglas de PostgreSQL impiden que otras cuentas editen el catálogo.
+4. Agrega `http://127.0.0.1:4200` y el dominio real de producción a **Neon Auth → Domains**. Copia las dos URL públicas en [`frontend/src/app/config/neon.config.ts`](frontend/src/app/config/neon.config.ts). Nunca pongas la contraseña PostgreSQL, una cadena `postgresql://` o una API key secreta en Angular o Git.
+
+En el panel puedes agregar platos en **A la carta**, **Fondos del día** y **Entradas** con el botón **Agregar plato** o **Agregar entrada**. Escribe el nombre, sube una fotografía y, para platos a la carta, elige la categoría y el precio. También puedes editar nombre, foto, precio y disponibilidad de los productos existentes, así como los precios globales de los menús Económico y Ejecutivo. Las fotografías JPG, PNG o WebP de hasta 5 MB se convierten en WebP de máximo 180 KB y se guardan en **Vercel Blob**. PostgreSQL conserva únicamente la URL. La subida pasa por una función Vercel que comprueba el permiso de administrador en Neon antes de escribir el archivo. En desarrollo local, `frontend/proxy.conf.json` dirige `/api` a la función publicada. Los cambios se muestran al volver a abrir la carta; una pestaña ya abierta se actualiza cada cinco minutos mientras siga visible.
+
+Si el panel muestra **Optimizar fotografías**, hay imágenes antiguas incrustadas en PostgreSQL. Pulsa **Mover fotografías** una vez con la sesión administradora abierta. La operación guarda una foto en Blob y actualiza su fila antes de pasar a la siguiente; si se interrumpe, vuelve a pulsar el botón para continuar con las pendientes. Revisa que el contador llegue a cero y que la carta siga mostrando todas las imágenes. No borres el almacén Blob mientras sus URL estén en el catálogo.
+
+El catálogo admite **250 productos en total**, contando todas las secciones, bebidas y productos agotados. El panel muestra el contador y bloquea las altas al llegar al límite; las ediciones y los cambios de disponibilidad siguen habilitados. En una base de datos ya existente, vuelve a ejecutar [`neon/catalog-capacity.sql`](neon/catalog-capacity.sql) para actualizar el límite anterior. PostgreSQL hace cumplir el mismo límite incluso con altas simultáneas. El contador se actualiza en la misma transacción que cada alta o eliminación y no agrega consultas a la carta pública. [`neon/verify-catalog-capacity.sql`](neon/verify-catalog-capacity.sql) comprueba el alta número 250, el rechazo de la 251 y las ediciones con el catálogo lleno; revierte todos los cambios de prueba.
+
+Para regenerar el archivo de carga a partir de los platos incluidos en Angular, ejecuta `node scripts/generate-neon-seed.cjs`. Si cambias el catálogo directamente en Neon, no vuelvas a ejecutar la carga: el archivo solo añade claves faltantes y no reemplaza filas editadas.
+
+## Editar platos y disponibilidad
+
+- **Con Neon conectado:** usa `/panel-administrativo` para editar los datos publicados; no hace falta desplegar otra vez la web para cada cambio.
+- **Sin Neon:** los datos de respaldo están en `frontend/src/app/data/menu.data.ts` y `frontend/src/app/data/daily-menu.data.ts`. Editarlos requiere volver a compilar y publicar. Sus imágenes están en `frontend/public/images/menu/` y `frontend/public/images/daily/`.
+- Las fotografías del menú del día son ilustrativas. Sustitúyelas por fotografías reales del restaurante cuando estén disponibles.
+
+El menú Económico cuesta S/ 12 y el Ejecutivo S/ 14, con cualquiera de los fondos disponibles. Los precios de bebidas son provisionales.
+
+Al elegir **retiro en local** o **entrega a domicilio**, el pedido suma **S/ 1 por táper por cada plato** (incluidos los menús del día). Las bebidas y los pedidos para mesa no generan este cargo. El carrito muestra el desglose y envía el mismo total por WhatsApp. Para modificar el importe, cambia `packagingFeePerDish` en `BUSINESS_CONFIG`, dentro de `frontend/src/app/data/menu.data.ts`.
+
+El pedido ofrece **retiro en local**, **entrega a domicilio** y **pedido para mesa**. La opción de mesa se indica en el mensaje de WhatsApp sin solicitar un número de mesa y sin cargo por táper.
+
+## Horario de pedidos
+
+La carta muestra **Abierto las 24 horas**, de lunes a domingo, y permite pedidos a cualquier hora. Para recuperar el horario de 9:00 a. m. a 11:00 p. m. de Perú, cambia `OPEN_24_HOURS` a `false` en `frontend/src/app/services/business-hours.ts` y establece `RESTAURANT_OPEN_24_HOURS=false` en `backend/.env` para los pedidos locales.
+
+El menú del día aparece primero al abrir la carta. Puedes buscar los fondos por nombre incluso si se escribe sin tildes. Los fondos tienen tarjetas con **Agregar** y controles **− cantidad +**. En celular, el tipo (Económico o Ejecutivo) y la entrada aparecen debajo del plato seleccionado, y cada plato se añade al carrito desde allí. En escritorio, todas las raciones se editan juntas en un único panel lateral y se añaden al pedido con un solo botón. Cada ración puede tener una entrada diferente. Al bajar la cantidad, se retira la última ración añadida de ese fondo.
+
+Al final del **Menú del día** aparecen **Entradas adicionales** (7 opciones a S/ 5). Al final de **Platos a la carta** aparecen **Guarniciones** (9 opciones: Huevo frito a S/ 2, Sopa de dieta a S/ 15 y las demás a S/ 5). Se pueden agregar por separado al carrito. Se guardan como productos del catálogo Neon, con categorías propias, y sus nombres, precios y disponibilidad se editan desde el panel. Tras actualizar el código en una instalación existente, ejecuta [`neon/seed.sql`](neon/seed.sql) en el SQL Editor de Neon para insertar solo las claves faltantes sin sobrescribir platos ya editados.
+
+## Cambiar el número de WhatsApp
+
+El contacto configurado actualmente es el **WhatsApp del restaurante: +51 987 091 127**. El pie de página y el pedido usan `BUSINESS_CONFIG` en `frontend/src/app/data/menu.data.ts`:
+
+- `whatsapp`: código de país y número, solo dígitos, sin `+`, espacios ni guiones. Ejemplo: `51987654321`.
+- `displayWhatsapp`: el mismo número con formato legible. Ejemplo: `+51 987 654 321`.
+
+Para las pruebas en `localhost`, `127.0.0.1` o `[::1]`, se usa exclusivamente el contacto de **INTEGRATECH: +51 902 586 908**, definido en `frontend/src/app/config/business.config.ts`. Esta configuración se aplica al pie de página, las consultas de platos y el envío por WhatsApp cuando se utiliza ese flujo. En el dominio publicado se conserva el número del restaurante. El sistema local de pedidos sigue registrando las órdenes directamente en Laravel.
+
+Vuelve a compilar o publicar después del cambio y prueba un pedido. La carta prepara el mensaje; el cliente debe pulsar **Enviar** en WhatsApp. El pedido queda pendiente de confirmación.

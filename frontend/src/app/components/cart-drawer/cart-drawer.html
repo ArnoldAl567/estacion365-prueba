@@ -1,0 +1,124 @@
+@if (open()) {
+  <button class="backdrop" type="button" tabindex="-1" (click)="closed.emit()" aria-label="Cerrar pedido"></button>
+  <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" aria-describedby="cart-subtitle">
+    <header class="drawer-header">
+      <div>
+        <span class="drawer-eyebrow">LA ESTACIÓN 365 / TU SELECCIÓN</span>
+        <h2 id="cart-title">Mi pedido</h2>
+        <p id="cart-subtitle">{{ directOrdering() ? 'Confirma tu pedido y lo recibiremos en cocina.' : 'Revisa tu pedido antes de enviarlo por WhatsApp.' }}</p>
+      </div>
+      <button id="close-cart" class="close" type="button" (click)="closed.emit()" aria-label="Cerrar pedido">×</button>
+    </header>
+
+    <div class="drawer-body" [attr.inert]="sending() ? '' : null" [attr.aria-busy]="sending()">
+      @if (directOrdering()) {
+        @if (operations.receipt(); as receipt) {
+          @let cancelled = receipt.status === 'cancelled';
+          <section class="order-receipt" [class.cancelled]="cancelled" aria-labelledby="receipt-title">
+            <span class="receipt-check" aria-hidden="true">{{ cancelled ? '×' : '✓' }}</span>
+            <span class="receipt-eyebrow">{{ cancelled ? 'PEDIDO CANCELADO' : 'PEDIDO CONFIRMADO' }}</span>
+            <h3 id="receipt-title">Tu pedido es el #{{ receipt.number }}</h3>
+            @if (cancelled) {
+              <p role="status">El restaurante canceló este pedido.</p>
+            } @else {
+              <p role="status">{{ receipt.status === 'pending' ? 'Ya lo recibimos. Cocina comenzará a prepararlo pronto.' : receipt.status === 'preparing' ? 'Estamos preparando tus platos.' : receipt.status === 'ready' ? 'Tu pedido está listo para entregar.' : 'Pedido entregado. ¡Gracias por elegirnos!' }}</p>
+              <ol class="receipt-progress" aria-label="Estado del pedido">
+                @for (status of statuses; track status.id; let index = $index) {
+                  <li [class.complete]="index <= statusIndex()" [attr.aria-current]="receipt.status === status.id ? 'step' : null"><i>{{ index < statusIndex() ? '✓' : index + 1 }}</i><span>{{ status.id === 'pending' ? 'Recibido' : status.label }}</span></li>
+                }
+              </ol>
+            }
+            <div class="receipt-items">
+              @for (item of receipt.items; track $index) {
+                <div><span>{{ item.quantity }} × {{ item.name }}@if (item.starter) { <small>Entrada · {{ item.starter }}</small> }</span><strong>{{ item.subtotalCents / 100 | currency:'PEN':'symbol-narrow':'1.2-2':'es-PE' }}</strong></div>
+              }
+              @if (receipt.packagingCents) { <div><span>Tápers</span><strong>{{ receipt.packagingCents / 100 | currency:'PEN':'symbol-narrow':'1.2-2':'es-PE' }}</strong></div> }
+              <div class="receipt-total"><strong>{{ cancelled ? 'Importe original' : 'Total confirmado' }}</strong><strong>{{ receipt.totalCents / 100 | currency:'PEN':'symbol-narrow':'1.2-2':'es-PE' }}</strong></div>
+            </div>
+            @if (trackingError()) { <p class="field-error" role="status">{{ trackingError() }}</p><button type="button" class="receipt-retry" (click)="refreshTracking()">Actualizar estado</button> }
+            <button type="button" class="receipt-new-order" (click)="newOrder()">{{ cancelled || receipt.status === 'delivered' ? 'Hacer otro pedido' : 'Volver a la carta' }} →</button>
+          </section>
+        }
+      }
+      @if (!cart.items().length && (!directOrdering() || !operations.receipt())) {
+        <div class="empty-state">
+          <div class="empty-icon" aria-hidden="true">⌁</div>
+          <h3>Empieza por algo rico</h3>
+          <p>Explora la carta y agrega los platos que más te provoquen.</p>
+          <button type="button" (click)="closed.emit()">Explorar la carta <span aria-hidden="true">↗</span></button>
+        </div>
+      } @else if (cart.items().length) {
+        <section class="cart-section" aria-labelledby="summary-title">
+          <div class="section-title"><span>01</span><h3 id="summary-title">Tus platos</h3><small>{{ cart.itemCount() }} {{ cart.itemCount() === 1 ? 'unidad' : 'unidades' }}</small></div>
+          <div class="items">
+            @for (item of cart.items(); track item.product.id) {
+              <article class="cart-item">
+                @if (item.product.image) { <img [src]="item.product.image" [alt]="item.product.imageAlt || item.product.name"> }
+                @else { <span class="cart-item-mark" aria-hidden="true"><img src="/brand/logo-icon.png" alt=""></span> }
+                <div class="item-main">
+                  <div class="item-title"><h4>{{ item.product.name }}</h4><strong>{{ (item.product.price ?? 0) * item.quantity | currency:'PEN':'symbol-narrow':'1.2-2':'es-PE' }}</strong></div>
+                  <p class="unit-price">{{ item.product.price | currency:'PEN':'symbol-narrow':'1.2-2':'es-PE' }} por unidad</p>
+                  <div class="item-actions">
+                    <div class="quantity" [attr.aria-label]="'Cantidad de ' + item.product.name">
+                      <button type="button" (click)="cart.setQuantity(item.product.id, item.quantity - 1)" [attr.aria-label]="'Quitar una unidad de ' + item.product.name">−</button>
+                      <span aria-live="polite">{{ item.quantity }}</span>
+                      <button type="button" (click)="cart.setQuantity(item.product.id, item.quantity + 1)" [attr.aria-label]="'Agregar una unidad de ' + item.product.name">+</button>
+                    </div>
+                    <button class="remove" type="button" (click)="cart.remove(item.product.id)" [attr.aria-label]="'Eliminar ' + item.product.name + ' del pedido'">Eliminar</button>
+                  </div>
+                  <label [for]="'note-' + item.product.id">Indicaciones para este plato</label>
+                  <input [id]="'note-' + item.product.id" type="text" [ngModel]="item.notes" (ngModelChange)="cart.updateNotes(item.product.id, $event)" placeholder="Ej. sin picante" maxlength="100">
+                </div>
+              </article>
+            }
+          </div>
+        </section>
+
+        <section class="customer-section" aria-labelledby="customer-title">
+          <div class="section-title"><span>02</span><h3 id="customer-title">Entrega y contacto</h3></div>
+          <fieldset>
+            <legend>¿Cómo recibirás tu pedido?</legend>
+            <div class="method-options delivery-method-options">
+              <label [class.selected]="customer.method === 'pickup'"><input type="radio" name="method" value="pickup" [(ngModel)]="customer.method" (ngModelChange)="clearError()"><span><strong>Retiro en local</strong><small>Táper: +S/ {{ config.packagingFeePerDish }} por plato</small></span></label>
+              <label [class.selected]="customer.method === 'delivery'"><input type="radio" name="method" value="delivery" [(ngModel)]="customer.method" (ngModelChange)="clearError()"><span><strong>Entrega a domicilio</strong><small>Táper: +S/ {{ config.packagingFeePerDish }} por plato</small></span></label>
+              <label [class.selected]="customer.method === 'table'"><input type="radio" name="method" value="table" [(ngModel)]="customer.method" (ngModelChange)="clearError()"><span><strong>Pedido para mesa</strong><small>Para consumir en el local</small></span></label>
+            </div>
+          </fieldset>
+          <div class="field-grid">
+            <div class="field"><label for="customer-name">Nombre completo <span aria-hidden="true">*</span></label><input id="customer-name" type="text" [(ngModel)]="customer.name" (ngModelChange)="clearError()" autocomplete="name" [attr.aria-invalid]="nameInvalid()" [class.invalid]="nameInvalid()" required>@if (nameInvalid()) { <small class="field-error">Ingresa al menos 2 caracteres.</small> }</div>
+            <div class="field"><label for="customer-phone">Teléfono <span aria-hidden="true">*</span></label><input #phoneInput id="customer-phone" type="tel" [ngModel]="customer.phone" (ngModelChange)="setPhone($event, phoneInput)" autocomplete="tel-national" inputmode="numeric" pattern="[0-9]{9}" placeholder="Ej. 987654321" [attr.aria-invalid]="phoneInvalid()" [class.invalid]="phoneInvalid()" required>@if (phoneInvalid()) { <small class="field-error">Ingresa exactamente 9 dígitos.</small> }</div>
+          </div>
+          <fieldset class="payment-fieldset">
+            <legend>Medio de pago <span aria-hidden="true">*</span></legend>
+            <div class="method-options payment-options">
+              <label [class.selected]="customer.payment === 'yape'"><input id="payment-yape" type="radio" name="payment" value="yape" [(ngModel)]="customer.payment" (ngModelChange)="clearError()"><span><strong>Yape</strong></span></label>
+              <label [class.selected]="customer.payment === 'cash'"><input type="radio" name="payment" value="cash" [(ngModel)]="customer.payment" (ngModelChange)="clearError()"><span><strong>Efectivo</strong></span></label>
+            </div>
+          </fieldset>
+          @if (customer.method === 'delivery') {
+            <div class="delivery-fields">
+              <div class="field"><label for="customer-address">Dirección de entrega <span aria-hidden="true">*</span></label><input id="customer-address" type="text" [(ngModel)]="customer.address" (ngModelChange)="clearError()" autocomplete="street-address" placeholder="Calle, número y distrito" [attr.aria-invalid]="addressInvalid()" [class.invalid]="addressInvalid()" required>@if (addressInvalid()) { <small class="field-error">Completa tu dirección.</small> }</div>
+              <div class="field"><label for="customer-reference">Referencia <small>Opcional</small></label><textarea id="customer-reference" [(ngModel)]="customer.reference" rows="2" placeholder="Ej. portón azul, frente al parque" maxlength="120"></textarea></div>
+            </div>
+          }
+        </section>
+      }
+    </div>
+
+    @if (cart.items().length) {
+      <footer class="drawer-footer">
+        @if (customer.method !== 'table') {
+          <div class="charge-row"><span>Productos</span><strong>{{ cart.total() | currency:'PEN':'symbol-narrow':'1.2-2':'es-PE' }}</strong></div>
+          @if (packagingItemCount()) {
+            <div class="charge-row"><span>{{ packagingItemCount() === 1 ? 'Táper' : 'Tápers' }} ({{ packagingItemCount() }} × S/ {{ config.packagingFeePerDish }})</span><strong>{{ packagingTotal() | currency:'PEN':'symbol-narrow':'1.2-2':'es-PE' }}</strong></div>
+          }
+        }
+        <div class="total-row"><span>Total del pedido</span><strong>{{ orderTotal() | currency:'PEN':'symbol-narrow':'1.2-2':'es-PE' }}</strong></div>
+        @if (errorMessage()) { <p class="form-error" role="alert">{{ errorMessage() }}</p> }
+        @if (!businessOpen()) { <p class="closed-order-note" role="status">Restaurante cerrado. Los pedidos se habilitan a las 9:00 a. m.</p> }
+        <button class="whatsapp" type="button" [disabled]="!orderEnabled() || !businessOpen() || sending()" (click)="sendOrder()">{{ sending() ? 'Registrando pedido…' : businessOpen() ? directOrdering() ? 'Confirmar pedido' : 'Enviar pedido por WhatsApp' : 'Restaurante cerrado' }} <span aria-hidden="true">↗</span></button>
+        @if (businessOpen()) { <p class="send-note">{{ directOrdering() ? 'Recibirás tu número de pedido y podrás seguir su preparación aquí.' : 'Revisa el mensaje y pulsa enviar en WhatsApp.' }}</p> }
+      </footer>
+    }
+  </aside>
+}

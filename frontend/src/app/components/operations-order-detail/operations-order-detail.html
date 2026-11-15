@@ -1,0 +1,108 @@
+@let order = data();
+<div class="detail-overlay" (click)="closed.emit()"></div>
+<aside class="order-detail" role="dialog" aria-modal="true" aria-labelledby="order-detail-title">
+  <header>
+    <div>
+      <span class="eyebrow">DETALLE DEL PEDIDO</span>
+      <h2 id="order-detail-title">Pedido #{{ order.number }}</h2>
+      <p>{{ order.createdAt | date: 'dd/MM/yyyy · HH:mm' : '-0500' }}</p>
+    </div>
+    <button
+      id="close-order-detail"
+      class="icon-button"
+      type="button"
+      (click)="closed.emit()"
+      aria-label="Cerrar detalle del pedido"
+    >
+      ×
+    </button>
+  </header>
+  <div class="detail-body">
+    <span [class]="'status-badge ' + order.status"><i></i>{{ statusLabel(order.status) }}</span>
+    <section class="detail-customer">
+      <span class="staff-avatar">{{ order.customerName.charAt(0) }}</span>
+      <div>
+        <strong>{{ order.customerName }}</strong
+        ><a [href]="'tel:+51' + order.customerPhone">{{ order.customerPhone }}</a>
+      </div>
+      <span class="method-tag">{{ methodLabel(order.method) }}</span>
+    </section>
+    @if (order.address) {
+      <div class="detail-address">
+        <strong>Dirección de entrega</strong>
+        <p>{{ order.address }}</p>
+        @if (order.reference) {
+          <small>Referencia · {{ order.reference }}</small>
+        }
+      </div>
+    }
+    <h3>Lo que vamos a preparar</h3>
+    <div class="detail-lines">
+      @for (item of order.items; track $index) {
+        <article>
+          <span class="detail-qty">{{ item.quantity }}×</span>
+          <div>
+            <strong>{{ item.name }}</strong>
+            @if (item.starter) {
+              <small>Entrada · {{ item.starter }}</small>
+            }
+            @if (item.notes) {
+              <p class="ticket-note">{{ item.notes }}</p>
+            }
+          </div>
+          <strong>{{
+            item.subtotalCents / 100 | currency: 'PEN' : 'symbol-narrow' : '1.2-2' : 'es-PE'
+          }}</strong>
+        </article>
+      }
+    </div>
+    <div class="detail-totals">
+      <div>
+        <span>Productos</span
+        ><strong>{{
+          order.subtotalCents / 100 | currency: 'PEN' : 'symbol-narrow' : '1.2-2' : 'es-PE'
+        }}</strong>
+      </div>
+      @if (order.packagingCents) {
+        <div>
+          <span>Tápers</span
+          ><strong>{{
+            order.packagingCents / 100 | currency: 'PEN' : 'symbol-narrow' : '1.2-2' : 'es-PE'
+          }}</strong>
+        </div>
+      }
+      <div class="grand-total">
+        <span>Total</span
+        ><strong>{{
+          order.totalCents / 100 | currency: 'PEN' : 'symbol-narrow' : '1.2-2' : 'es-PE'
+        }}</strong>
+      </div>
+      <small>Medio de pago · {{ order.payment === 'yape' ? 'Yape' : 'Efectivo' }}</small>
+    </div>
+    @if (order.events?.length) {
+      <h3>Recorrido del pedido</h3>
+      <ol class="order-timeline">
+        @for (event of order.events; track $index) {
+          <li>
+            <i [class]="event.status"></i>
+            <div>
+              <strong>{{ statusLabel(event.status) }}</strong
+              ><small>{{ event.by }} · {{ event.at | date: 'HH:mm' : '-0500' }}</small>
+              @if (event.reason) { <p class="ticket-note">{{ event.reason }}</p> }
+            </div>
+          </li>
+        }
+      </ol>
+    }
+  </div>
+  @if (isActiveOrderStatus(order.status)) {
+    <footer>
+      <button class="ops-primary" type="button" [disabled]="busy()" (click)="advanced.emit(order)">
+        {{ busy() ? 'Actualizando…' : nextAction(order) }} <span>→</span>
+      </button>
+      <button class="detail-cancel" type="button" [disabled]="busy()" (click)="cancellationRequested.emit(order)">
+        Cancelar pedido
+      </button>
+    </footer>
+  }
+</aside>

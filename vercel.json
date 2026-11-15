@@ -1,0 +1,5 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "frontend/dist/sabor-a-mar/browser",
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+}

@@ -1,0 +1,648 @@
+@if (loading()) {
+  <main class="ops-loading">
+    <img src="/brand/logo-full.png" alt="La Estación 365" /><span class="loader"></span>
+    <p>Preparando tu espacio de trabajo…</p>
+  </main>
+} @else if (!api.user()) {
+  <app-operations-access
+    [initialized]="api.initialized()"
+    [busy]="busy()"
+    [error]="error()"
+    (credentialsSubmitted)="signIn($event)"
+    (retry)="initialize()"
+  />
+} @else {
+  <div class="ops-layout">
+    <aside class="ops-sidebar">
+      <a href="/" class="sidebar-logo"><img src="/brand/logo-full.png" alt="La Estación 365" /></a>
+      <div class="sidebar-label">TU RESTAURANTE</div>
+      <nav aria-label="Gestión del restaurante">
+        @for (entry of navigation; track entry.id) {
+          @if (canOpenView(entry.id)) {
+            <a
+              [href]="viewUrl(entry.id)"
+              [class.active]="view() === entry.id"
+              [attr.aria-label]="entry.label"
+              [attr.title]="entry.label"
+              [attr.aria-current]="view() === entry.id ? 'page' : null"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="entry.icon" /></svg
+              ><span class="nav-label">{{ entry.label }}</span>
+              <span class="nav-compact-label">{{
+                entry.id === 'catalog' ? 'Carta' : entry.label
+              }}</span>
+              @if (entry.id === 'orders' && counts().pending) {
+                <small>{{ counts().pending }}</small>
+              }
+            </a>
+          }
+        }
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="local-status">
+          <i></i>
+          <div><strong>Entorno local</strong><small>Pedidos y cocina</small></div>
+        </div>
+        <a href="/" target="_blank" rel="noopener">Abrir carta digital <span>↗</span></a>
+      </div>
+    </aside>
+
+    <div class="ops-workspace">
+      <header class="ops-topbar">
+        <div class="breadcrumb">
+          Mi restaurante <span>/</span> <strong>{{ pageTitle() }}</strong>
+        </div>
+        <div class="topbar-account">
+          <span class="staff-avatar">{{ api.user()?.name?.charAt(0) }}</span>
+          <div>
+            <strong>{{ api.user()?.name }}</strong
+            ><small>{{ isAdmin() ? 'Administrador' : 'Equipo de cocina' }}</small>
+          </div>
+          <button
+            class="icon-button"
+            type="button"
+            (click)="signOut()"
+            [disabled]="busy()"
+            aria-label="Cerrar sesión"
+            title="Cerrar sesión"
+          >
+            <svg viewBox="0 0 24 24"><path d="M9 3H4v18h5M13 8l5 4-5 4M8 12h12" /></svg>
+          </button>
+        </div>
+      </header>
+      <main class="ops-main">
+        <section class="ops-heading">
+          <div>
+            <div class="date-eyebrow">
+              {{ now() | date: 'EEEE d MMMM' : '-0500' : 'es-PE' }} <span>·</span> LA ESTACIÓN 365
+            </div>
+            <h1>{{ pageTitle() }}</h1>
+            <p>
+              {{
+                view() === 'kitchen'
+                  ? 'Cada comanda en su lugar. Cada plato a su tiempo.'
+                  : view() === 'history'
+                    ? 'Consulta los pedidos entregados y cancelados.'
+                    : view() === 'users'
+                      ? 'Cada persona, con el acceso que necesita.'
+                      : view() === 'catalog'
+                        ? 'Actualiza platos, fotografías, precios y disponibilidad desde aquí.'
+                        : view() === 'reports'
+                          ? 'Consulta qué platos tienen más demanda en tu restaurante.'
+                          : 'Todo lo que necesitas para atender tu próxima orden.'
+              }}
+            </p>
+          </div>
+          <div class="heading-actions">
+            <span class="connection" [class.offline]="!online()"
+              ><i></i>{{ online() ? 'En vivo' : 'Sin conexión' }}</span
+            ><button
+              class="ops-secondary sound-button"
+              [class.enabled]="soundReady()"
+              [attr.aria-pressed]="sound()"
+              type="button"
+              (click)="toggleSound()"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" />
+                @if (!soundReady()) {
+                  <path d="m3 3 18 18" />
+                }</svg
+              >{{ soundReady() ? 'Avisos activados' : sound() ? 'Silenciar avisos' : 'Activar sonido' }}
+            </button>
+          </div>
+        </section>
+
+        @if (sound() && !soundReady()) {
+          <p class="sound-hint" role="status">Haz clic en el panel para reactivar el sonido.</p>
+        }
+
+        @if (error()) {
+          <div class="ops-alert error" role="alert">
+            <span>{{ error() }}</span
+            ><button type="button" (click)="error.set(''); refresh()">Reintentar</button>
+          </div>
+        }
+        @if (connectionError()) {
+          <div class="ops-alert error" role="alert">
+            <span>{{ connectionError() }}</span>
+            <button type="button" (click)="refresh()">Reconectar</button>
+          </div>
+        }
+        @if (notice()) {
+          <div class="ops-alert success" role="status">
+            <span>{{ notice() }}</span
+            ><button type="button" (click)="dismissNotice()" aria-label="Cerrar aviso">×</button>
+          </div>
+        }
+
+        @if (view() === 'orders' || view() === 'kitchen') {
+          <section
+            class="ops-stats"
+            [class.kitchen-summary]="view() === 'kitchen'"
+            aria-label="Resumen de pedidos"
+          >
+            @for (status of lanes; track status.id) {
+              <button
+                class="metric"
+                [class]="'metric ' + status.id"
+                type="button"
+                (click)="selectStatus(status.id)"
+              >
+                <span class="metric-heading"
+                  ><i></i
+                  ><span class="metric-label">{{
+                    status.label === 'Pendiente'
+                      ? 'Por atender'
+                      : status.label === 'Listo'
+                        ? 'Listos para entregar'
+                        : 'En preparación'
+                  }}</span
+                  ><span class="metric-short">{{ status.label }}</span
+                  ><svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="m7 17 10-10M7 7h10v10" /></svg></span
+                ><strong>{{ counts()[status.id].toString().padStart(2, '0') }}</strong
+                ><small>{{
+                  status.id === 'pending'
+                    ? 'Esperando a cocina'
+                    : status.id === 'preparing'
+                      ? 'Manos a la obra'
+                      : 'El último paso del servicio'
+                }}</small>
+              </button>
+            }
+            <div class="metric today">
+              <span class="metric-heading"
+                >Pedidos de hoy
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M5 5h14v16H5V5ZM8 2v6M16 2v6M5 10h14M9 14h2M13 17h2" /></svg></span
+              ><strong>{{ summary().todayCount.toString().padStart(2, '0') }}</strong
+              ><small
+                >{{
+                  summary().todayTotalCents / 100
+                    | currency: 'PEN' : 'symbol-narrow' : '1.2-2' : 'es-PE'
+                }}
+                en pedidos</small
+              >
+            </div>
+          </section>
+        }
+
+        @if (view() === 'orders') {
+          <section class="ops-card orders-card">
+            <div class="card-title">
+              <div>
+                <h2>La atención de hoy</h2>
+                <p>{{ orders().length }} pedidos en curso</p>
+              </div>
+              <button class="text-button" type="button" (click)="selectView('kitchen')">
+                Ver cocina <span>↗</span>
+              </button>
+            </div>
+            <div class="order-filters">
+              <nav aria-label="Filtrar pedidos por estado">
+                <button
+                  type="button"
+                  [class.selected]="statusFilter() === 'all'"
+                  (click)="statusFilter.set('all')"
+                >
+                  Todos <small>{{ orders().length }}</small>
+                </button>
+                @for (status of lanes; track status.id) {
+                  <button
+                    type="button"
+                    [class.selected]="statusFilter() === status.id"
+                    (click)="statusFilter.set(status.id)"
+                  >
+                    {{ status.label }}
+                  </button>
+                }
+              </nav>
+              <label class="ops-search"
+                ><svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="10" cy="10" r="6" />
+                  <path d="m15 15 5 5" /></svg
+                ><input
+                  type="search"
+                  placeholder="Buscar pedido o cliente"
+                  aria-label="Buscar pedido o cliente"
+                  [ngModel]="search()"
+                  (ngModelChange)="search.set($event)"
+              /></label>
+            </div>
+            <div class="ops-table-wrap">
+              <table class="ops-table">
+                <thead>
+                  <tr>
+                    <th>Pedido</th>
+                    <th>Cliente</th>
+                    <th>Modalidad</th>
+                    <th>Recibido</th>
+                    <th>Importe</th>
+                    <th>Estado</th>
+                    <th><span class="visually-hidden">Acciones</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (order of filteredOrders(); track order.id) {
+                    <tr>
+                      <td data-label="Pedido">
+                        <button class="order-number" (click)="openDetails(order)">
+                          #{{ order.number }}</button
+                        ><small>{{ quantity(order) }} unidades</small>
+                      </td>
+                      <td data-label="Cliente">
+                        <strong>{{ order.customerName }}</strong
+                        ><small>{{ order.customerPhone }}</small>
+                      </td>
+                      <td data-label="Modalidad">
+                        <span class="method-tag" [class.delivery]="order.method === 'delivery'">{{
+                          methodLabel(order.method)
+                        }}</span>
+                      </td>
+                      <td data-label="Recibido">
+                        <strong>{{ order.createdAt | date: 'HH:mm' : '-0500' }}</strong
+                        ><small [class.waiting-long]="minutes(order) >= 15"
+                          >Hace {{ minutes(order) }} min</small
+                        >
+                      </td>
+                      <td data-label="Importe">
+                        <strong>{{
+                          order.totalCents / 100
+                            | currency: 'PEN' : 'symbol-narrow' : '1.2-2' : 'es-PE'
+                        }}</strong
+                        ><small>{{ order.payment === 'yape' ? 'Yape' : 'Efectivo' }}</small>
+                      </td>
+                      <td data-label="Estado">
+                        <span [class]="'status-badge ' + order.status"
+                          ><i></i>{{ statusLabel(order.status) }}</span
+                        >
+                      </td>
+                      <td data-label="Acciones">
+                        <button
+                          class="detail-button"
+                          (click)="openDetails(order)"
+                          [attr.aria-label]="'Ver pedido ' + order.number"
+                        >
+                          Ver detalle <span>→</span>
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            @if (!filteredOrders().length) {
+              <div class="ops-empty">
+                <svg viewBox="0 0 64 64" aria-hidden="true">
+                  <path d="M18 8h22l8 8v40H16V8h2ZM25 25h14M25 34h14M25 43h8M40 8v10h8" />
+                </svg>
+                <h3>
+                  {{
+                    orders().length
+                      ? 'No encontramos ese pedido'
+                      : 'La cocina está lista para empezar'
+                  }}
+                </h3>
+                <p>
+                  {{
+                    orders().length
+                      ? 'Prueba otro nombre, número o estado.'
+                      : 'Los pedidos confirmados desde la carta aparecerán aquí automáticamente.'
+                  }}
+                </p>
+                @if (!orders().length) {
+                  <a href="/" target="_blank" class="ops-primary" rel="noopener"
+                    >Abrir carta digital <span>↗</span></a
+                  >
+                }
+              </div>
+            }
+          </section>
+        }
+
+        @if (view() === 'kitchen') {
+          <app-operations-kitchen
+            [orders]="orders()"
+            [changing]="changing()"
+            [now]="now()"
+            (detailsRequested)="openDetails($event)"
+            (advanced)="advance($event)"
+            (cancellationRequested)="requestCancellation($event)"
+          />
+        }
+
+        @if (view() === 'history') {
+          <section class="ops-card">
+            <div class="card-title">
+              <div>
+                <h2>Pedidos entregados y cancelados</h2>
+                <p>
+                  {{ pagination().total }}
+                  {{ pagination().total === 1 ? 'pedido encontrado' : 'pedidos encontrados' }}
+                </p>
+              </div>
+              <span class="history-mark">PEDIDOS CERRADOS</span>
+            </div>
+            <form class="history-filters" (ngSubmit)="loadHistory()">
+              <label
+                >Fecha de recepción<input
+                  type="date"
+                  name="date"
+                  [(ngModel)]="historyDate" /></label
+              ><label class="history-search-label"
+                >Pedido o cliente<input
+                  type="search"
+                  name="search"
+                  placeholder="Número, nombre o celular"
+                  [(ngModel)]="historySearch" /></label
+              ><button type="submit" class="ops-primary" [disabled]="historyLoading()">
+                {{ historyLoading() ? 'Buscando…' : 'Buscar pedidos' }}</button
+              ><button
+                type="button"
+                class="text-button"
+                (click)="historyDate = ''; historySearch = ''; loadHistory()"
+              >
+                Ver todo
+              </button>
+            </form>
+            <div class="ops-table-wrap">
+              <table class="ops-table">
+                <thead>
+                  <tr>
+                    <th>Pedido</th>
+                    <th>Cliente</th>
+                    <th>Fecha</th>
+                    <th>Modalidad</th>
+                    <th>Importe</th>
+                    <th>Estado</th>
+                    <th><span class="visually-hidden">Detalle</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (order of history(); track order.id) {
+                    <tr>
+                      <td data-label="Pedido">
+                        <button class="order-number" (click)="openDetails(order)">
+                          #{{ order.number }}
+                        </button>
+                      </td>
+                      <td data-label="Cliente">
+                        <strong>{{ order.customerName }}</strong
+                        ><small>{{ order.customerPhone }}</small>
+                      </td>
+                      <td data-label="Fecha">
+                        {{ order.createdAt | date: 'dd/MM/yyyy HH:mm' : '-0500' }}
+                      </td>
+                      <td data-label="Modalidad">{{ methodLabel(order.method) }}</td>
+                      <td data-label="Importe">
+                        <strong>{{
+                          order.totalCents / 100
+                            | currency: 'PEN' : 'symbol-narrow' : '1.2-2' : 'es-PE'
+                        }}</strong>
+                      </td>
+                      <td data-label="Estado">
+                        <span [class]="'status-badge ' + order.status">{{ statusLabel(order.status) }}</span>
+                      </td>
+                      <td data-label="Detalle">
+                        <button class="detail-button" (click)="openDetails(order)">
+                          Ver detalle →
+                        </button>
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+            @if (!history().length && !historyLoading()) {
+              <div class="ops-empty compact">
+                <h3>No se encontraron pedidos cerrados</h3>
+                <p>Los pedidos pasan al historial cuando se entregan o se cancelan.</p>
+              </div>
+            }
+            <footer class="pagination">
+              <span>Página {{ pagination().page }} de {{ pagination().lastPage }}</span>
+              <div>
+                <button
+                  type="button"
+                  [disabled]="pagination().page <= 1 || historyLoading()"
+                  (click)="loadHistory(pagination().page - 1)"
+                >
+                  ← Anterior</button
+                ><button
+                  type="button"
+                  [disabled]="pagination().page >= pagination().lastPage || historyLoading()"
+                  (click)="loadHistory(pagination().page + 1)"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            </footer>
+          </section>
+        }
+
+        @if (view() === 'users' && isAdmin()) {
+          <div class="team-layout" [class.editing]="staffForm()">
+            <section class="ops-card">
+              <div class="card-title">
+                <div>
+                  <h2>Las personas detrás del servicio</h2>
+                  <p>Gestiona las cuentas de tu equipo.</p>
+                </div>
+                <button class="ops-primary" type="button" (click)="editUser()">
+                  + Agregar usuario
+                </button>
+              </div>
+              <div class="staff-list">
+                @for (user of users(); track user.id) {
+                  <article class="staff-row" [class.inactive]="!user.active">
+                    <span class="staff-avatar large" [class.kitchen]="user.role === 'kitchen'">{{
+                      user.name.charAt(0)
+                    }}</span>
+                    <div class="staff-name">
+                      <h3>
+                        {{ user.name }}
+                        @if (user.id === api.user()?.id) {
+                          <small>Tú</small>
+                        }
+                      </h3>
+                      <span>{{ user.username }}</span>
+                    </div>
+                    <span [class]="'role-badge ' + user.role">{{
+                      user.role === 'admin' ? 'Administrador' : 'Cocina'
+                    }}</span
+                    ><span class="staff-active"
+                      ><i [class.disabled]="!user.active"></i
+                      >{{ user.active ? 'Activo' : 'Inactivo' }}</span
+                    >
+                    <div class="staff-actions">
+                      <button type="button" (click)="editUser(user)">Editar</button
+                      ><button
+                        type="button"
+                        [disabled]="busy() || user.id === api.user()?.id"
+                        (click)="toggleUser(user)"
+                      >
+                        {{ user.active ? 'Desactivar' : 'Activar' }}
+                      </button>
+                    </div>
+                  </article>
+                }
+              </div>
+              <div class="permission-summary">
+                <h3>Permisos por función</h3>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Acceso</th>
+                      <th>Administrador</th>
+                      <th>Cocina</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Ver pedidos y comandas</td>
+                      <td>✓</td>
+                      <td>✓</td>
+                    </tr>
+                    <tr>
+                      <td>Actualizar preparación y entrega</td>
+                      <td>✓</td>
+                      <td>✓</td>
+                    </tr>
+                    <tr>
+                      <td>Consultar historial</td>
+                      <td>✓</td>
+                      <td>✓</td>
+                    </tr>
+                    <tr>
+                      <td>Editar carta, fotos y precios</td>
+                      <td>✓</td>
+                      <td>—</td>
+                    </tr>
+                    <tr>
+                      <td>Consultar reportes de demanda</td>
+                      <td>✓</td>
+                      <td>—</td>
+                    </tr>
+                    <tr>
+                      <td>Administrar usuarios</td>
+                      <td>✓</td>
+                      <td>—</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            @if (staffForm(); as form) {
+              <aside class="ops-card staff-editor">
+                <div class="card-title">
+                  <h2>{{ form.id ? 'Editar acceso' : 'Nuevo usuario' }}</h2>
+                  <button
+                    class="icon-button"
+                    type="button"
+                    (click)="staffForm.set(null)"
+                    aria-label="Cerrar formulario de usuario"
+                  >
+                    ×
+                  </button>
+                </div>
+                <form (ngSubmit)="saveUser()">
+                  <label for="staff-name">Nombre</label
+                  ><input
+                    id="staff-name"
+                    name="name"
+                    required
+                    minlength="2"
+                    maxlength="120"
+                    [(ngModel)]="form.name"
+                  /><label for="staff-username">Usuario</label
+                  ><input
+                    id="staff-username"
+                    name="username"
+                    required
+                    minlength="3"
+                    maxlength="40"
+                    pattern="[A-Za-z0-9_-]+"
+                    [disabled]="!!form.id"
+                    [(ngModel)]="form.username"
+                  /><label for="staff-role">Función</label
+                  ><select id="staff-role" name="role" [(ngModel)]="form.role">
+                    <option value="kitchen">Cocina</option>
+                    <option value="admin">Administrador</option></select
+                  ><label for="staff-password">{{
+                    form.id ? 'Nueva contraseña (opcional)' : 'Contraseña'
+                  }}</label
+                  ><input
+                    id="staff-password"
+                    name="password"
+                    type="password"
+                    [required]="!form.id"
+                    minlength="10"
+                    maxlength="128"
+                    autocomplete="new-password"
+                    [(ngModel)]="form.password"
+                    placeholder="Mínimo 10 caracteres"
+                  /><button class="ops-primary" type="submit" [disabled]="busy()">
+                    {{ busy() ? 'Guardando…' : 'Guardar acceso' }} →
+                  </button>
+                </form>
+              </aside>
+            }
+          </div>
+        }
+        @if (view() === 'catalog' && isAdmin()) {
+          <app-admin-panel [embedded]="true" />
+        }
+        @if (view() === 'reports' && isAdmin()) {
+          <app-operations-reports />
+        }
+        <footer class="ops-footer">
+          <span>LA ESTACIÓN 365</span><span>Un servicio pensado para disfrutar.</span>
+        </footer>
+      </main>
+    </div>
+  </div>
+
+  @if (selected(); as order) {
+    <app-operations-order-detail
+      [data]="order"
+      [busy]="changing().has(order.id)"
+      (closed)="selected.set(null)"
+      (advanced)="advance($event)"
+      (cancellationRequested)="requestCancellation($event)"
+    />
+  }
+  <dialog
+    #cancellationDialog
+    class="cancel-dialog"
+    aria-labelledby="cancel-order-title"
+    aria-describedby="cancel-order-description"
+    (close)="cancellation.set(null)"
+    (cancel)="changing().has(cancellation()?.id ?? -1) && $event.preventDefault()"
+  >
+    @let cancelling = changing().has(cancellation()?.id ?? -1);
+    <form (ngSubmit)="confirmCancellation()" [attr.aria-busy]="cancelling">
+      <h2 id="cancel-order-title">Cancelar pedido #{{ cancellation()?.number }}</h2>
+      <p id="cancel-order-description">La comanda saldrá de Cocina y quedará como cancelada en el Historial.</p>
+      <label for="cancel-reason">Motivo de la cancelación</label>
+      <textarea
+        id="cancel-reason"
+        name="reason"
+        rows="3"
+        maxlength="240"
+        required
+        autofocus
+        placeholder="Ej. El cliente solicitó la cancelación"
+        [(ngModel)]="cancellationReason"
+        [disabled]="cancelling"
+      ></textarea>
+      @if (cancellationError()) { <p class="cancel-error" role="alert">{{ cancellationError() }}</p> }
+      <div class="cancel-actions">
+        <button class="ops-secondary" type="button" [disabled]="cancelling" (click)="cancellationDialog.close()">Volver</button>
+        <button class="ops-primary cancel-confirm" type="submit" [disabled]="cancelling || !cancellationReason.trim()">
+          {{ cancelling ? 'Cancelando…' : 'Confirmar cancelación' }}
+        </button>
+      </div>
+    </form>
+  </dialog>
+}

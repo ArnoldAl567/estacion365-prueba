@@ -1,0 +1,107 @@
+<main class="ops-access">
+  <section class="access-story">
+    <a href="/" class="access-logo"><img src="/brand/logo-full.png" alt="La Estación 365" /></a>
+    <div class="access-copy">
+      <span class="eyebrow">PEDIDOS & COCINA</span>
+      <h1>Un buen servicio empieza con <em>todo en orden.</em></h1>
+      <p>
+        Del pedido de tu cliente a las manos de cocina. Un solo lugar para acompañar cada
+        preparación.
+      </p>
+      <div class="workflow">
+        <span><i>01</i> Recibe</span><span><i>02</i> Prepara</span><span><i>03</i> Entrega</span>
+      </div>
+    </div>
+    <small>LA ESTACIÓN 365 · RESTAURANTE & CEVICHERÍA</small>
+  </section>
+  <section class="access-form">
+    <div class="login-box">
+      <span class="eyebrow">BIENVENIDO A TU RESTAURANTE</span>
+      <h2>{{ initialized() ? 'Inicia tu jornada' : 'Configura tu primer acceso' }}</h2>
+      <p>
+        {{
+          initialized()
+            ? 'Ingresa con la cuenta que te asignó el administrador.'
+            : 'Crea la cuenta administradora de este sistema local.'
+        }}
+      </p>
+      @if (error()) {
+        <div class="ops-alert error" role="alert">
+          {{ error() }} <button type="button" (click)="retry.emit()">Reintentar conexión</button>
+        </div>
+      }
+      <form (ngSubmit)="submit()">
+        @if (!initialized()) {
+          <label for="setup-name">Tu nombre</label
+          ><input
+            id="setup-name"
+            name="name"
+            required
+            minlength="2"
+            maxlength="120"
+            autocomplete="name"
+            [(ngModel)]="login.name"
+            placeholder="Nombre del administrador"
+          />
+        }
+        <label for="ops-username">Usuario</label
+        ><input
+          id="ops-username"
+          name="username"
+          required
+          maxlength="40"
+          autocomplete="username"
+          autocapitalize="none"
+          spellcheck="false"
+          [(ngModel)]="login.username"
+          placeholder="Tu usuario de acceso"
+        />
+        <label for="ops-password">Contraseña</label>
+        <div class="password-wrap">
+          <input
+            id="ops-password"
+            name="password"
+            [type]="showPassword ? 'text' : 'password'"
+            required
+            [minlength]="initialized() ? 1 : 10"
+            maxlength="128"
+            [attr.autocomplete]="initialized() ? 'current-password' : 'new-password'"
+            [(ngModel)]="login.password"
+            placeholder="{{ initialized() ? 'Tu contraseña' : 'Mínimo 10 caracteres' }}"
+          /><button
+            type="button"
+            (click)="showPassword = !showPassword"
+            [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7Z" />
+              <circle cx="12" cy="12" r="3" />
+              @if (showPassword) {
+                <path d="m3 3 18 18" />
+              }
+            </svg>
+          </button>
+        </div>
+        @if (!initialized()) {
+          <label for="setup-confirmation">Repite la contraseña</label
+          ><input
+            id="setup-confirmation"
+            name="confirmation"
+            type="password"
+            required
+            minlength="10"
+            maxlength="128"
+            autocomplete="new-password"
+            [(ngModel)]="login.confirmation"
+          />
+        }
+        <button type="submit" class="ops-primary login-submit" [disabled]="busy()">
+          {{ busy() ? 'Conectando…' : initialized() ? 'Entrar al sistema' : 'Crear administrador' }}
+          <span>→</span>
+        </button>
+      </form>
+      <a class="back-to-menu" href="/">← Volver a la carta digital</a>
+      <p class="local-note"><span></span> Entorno de trabajo local</p>
+    </div>
+  </section>
+</main>
