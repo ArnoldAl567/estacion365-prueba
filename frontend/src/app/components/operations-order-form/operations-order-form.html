@@ -28,10 +28,10 @@
       }
     </details>
     <form #form="ngForm" id="staff-order-form" (ngSubmit)="form.valid && submit()">
-      <fieldset [disabled]="saving()">
-        <legend>Atención</legend>
-        <div class="fields">
-          <label>Modalidad
+      <fieldset class="editor-section" [disabled]="saving()">
+        <legend>Datos de atención</legend>
+        <div class="fields attention-fields">
+          <label [class.wide]="customer.method !== 'table'">Modalidad
             <select name="method" [(ngModel)]="customer.method">
               <option value="table">Salón</option>
               <option value="pickup">Para llevar</option>
@@ -43,39 +43,42 @@
               <input name="table" [(ngModel)]="customer.tableLabel" required maxlength="40" placeholder="Ej. 4" />
             </label>
           }
-          <label>Cliente {{ customer.method === 'table' ? '(opcional)' : '' }}
-            <input name="customer" autocomplete="off" [(ngModel)]="customer.name"
-              [required]="customer.method !== 'table'" minlength="2" maxlength="120" />
-          </label>
-          <label>Teléfono {{ customer.method !== 'delivery' ? '(opcional)' : '' }}
-            <input name="phone" [(ngModel)]="customer.phone" type="tel" inputmode="numeric"
-              pattern="[0-9]{9}" maxlength="9" [required]="customer.method === 'delivery'" />
-          </label>
-          @if (customer.method === 'delivery') {
-            <label>Dirección
-              <input name="address" [(ngModel)]="customer.address" required minlength="6" maxlength="240" />
-            </label>
-            <label>Referencia (opcional)
-              <input name="reference" [(ngModel)]="customer.reference" maxlength="160" />
-            </label>
-          }
-          <label>Medio de pago
+          <label class="mobile-wide">Medio de pago
             <select name="payment" [(ngModel)]="customer.payment">
               <option [ngValue]="null">Por definir</option>
               <option value="cash">Efectivo</option>
               <option value="yape">Yape</option>
             </select>
           </label>
+          <label class="wide">
+            <span>Cliente @if (customer.method === 'table') { <small>Opcional</small> }</span>
+            <input name="customer" autocomplete="off" [(ngModel)]="customer.name"
+              [required]="customer.method !== 'table'" minlength="2" maxlength="120" />
+          </label>
+          <label class="mobile-wide">
+            <span>Teléfono @if (customer.method !== 'delivery') { <small>Opcional</small> }</span>
+            <input name="phone" [(ngModel)]="customer.phone" type="tel" inputmode="numeric"
+              pattern="[0-9]{9}" maxlength="9" [required]="customer.method === 'delivery'" />
+          </label>
+          @if (customer.method === 'delivery') {
+            <label class="wide">Dirección
+              <input name="address" [(ngModel)]="customer.address" required minlength="6" maxlength="240" />
+            </label>
+            <label class="mobile-wide">
+              <span>Referencia <small>Opcional</small></span>
+              <input name="reference" [(ngModel)]="customer.reference" maxlength="160" />
+            </label>
+          }
         </div>
       </fieldset>
-      <fieldset [disabled]="saving()">
-        <legend>Productos</legend>
+      <fieldset class="editor-section" [disabled]="saving()">
+        <legend>Agregar productos</legend>
         @if (loading()) {
           <p role="status">Cargando productos…</p>
         } @else if (!loaded()) {
           <button type="button" (click)="loadCatalog()">Reintentar carga</button>
         } @else {
-          <div class="fields picker">
+          <div class="fields picker-filters">
             <label>Categoría
               <select name="category" [ngModel]="category()" (ngModelChange)="changeCategory($event)">
                 <option value="">Todos los productos</option>
@@ -84,8 +87,10 @@
               </select>
             </label>
             <label>Buscar producto
-              <input name="query" type="search" [ngModel]="query()" (ngModelChange)="query.set($event); productKey = ''" />
+              <input name="query" type="search" placeholder="Nombre del plato" [ngModel]="query()" (ngModelChange)="query.set($event); productKey = ''" />
             </label>
+          </div>
+          <div class="fields picker-selection" [class.daily-picker]="category() === 'menu-dia'">
             <label>{{ category() === 'menu-dia' ? 'Fondo' : 'Producto' }}
               <select name="product" [(ngModel)]="productKey">
                 <option value="">{{ matches().length ? 'Selecciona una opción' : 'Sin resultados' }}</option>
@@ -109,43 +114,50 @@
                 </select>
               </label>
             }
-            <button type="button" [disabled]="!productKey || lines.length >= 100 || (category() === 'menu-dia' && !starterKey)" (click)="addLine()">
+            <button class="primary add-product" type="button" [disabled]="!productKey || lines.length >= 100 || (category() === 'menu-dia' && !starterKey)" (click)="addLine()">
               Agregar producto
             </button>
           </div>
         }
+      </fieldset>
+      <fieldset class="added-products" [disabled]="saving()">
+        <legend>Productos del pedido</legend>
         @for (line of lines; track line.key) {
           <article class="draft-line">
             <div class="line-title">
-              <strong>{{ line.name }}</strong>
-              <span>{{ amount(line.unitPriceCents * (line.quantity || 0)) }}</span>
+              <div>
+                <h3>{{ line.name }}</h3>
+                <strong class="line-price">{{ amount(line.unitPriceCents * (line.quantity || 0)) }}</strong>
+              </div>
+              <button type="button" class="remove line-remove" [attr.aria-label]="'Quitar ' + line.name" (click)="removeLine(line.key)">Quitar</button>
             </div>
-            <div class="fields">
+            <div class="fields line-fields">
               <label>Cantidad
                 <input [name]="'quantity' + line.key" type="number" inputmode="numeric" min="1" max="99" step="1" required [(ngModel)]="line.quantity" />
               </label>
-              <label>Opciones de preparación
-                <input [name]="'modifiers' + line.key" [(ngModel)]="line.modifiers"
-                  maxlength="335" placeholder="Ej. sin cebolla, salsa aparte" />
-              </label>
-              @if (modifiers().length) {
-                <label>Aplicar opción guardada
-                  <select #preset (change)="applyModifier(line, preset.value); preset.value = ''">
-                    <option value="">Selecciona una opción</option>
-                    @for (modifier of modifiers(); track modifier.id) {
-                      <option [value]="modifier.name">{{ modifier.name }}</option>
-                    }
-                  </select>
+              <div class="preparation-fields">
+                <label>Opciones de preparación
+                  <input [name]="'modifiers' + line.key" [(ngModel)]="line.modifiers"
+                    maxlength="335" placeholder="Ej. sin cebolla" />
                 </label>
-              }
+                @if (modifiers().length) {
+                  <label>Aplicar opción guardada
+                    <select #preset (change)="applyModifier(line, preset.value); preset.value = ''">
+                      <option value="">Selecciona una opción</option>
+                      @for (modifier of modifiers(); track modifier.id) {
+                        <option [value]="modifier.name">{{ modifier.name }}</option>
+                      }
+                    </select>
+                  </label>
+                }
+              </div>
               <label>Observaciones
                 <input [name]="'notes' + line.key" [(ngModel)]="line.notes" maxlength="100" />
               </label>
-              <button type="button" class="remove" [attr.aria-label]="'Quitar ' + line.name" (click)="removeLine(line.key)">Quitar</button>
             </div>
           </article>
         } @empty {
-          <p>Agrega al menos un producto para guardar el pedido.</p>
+          <p class="empty-products">Agrega al menos un producto para guardar el pedido.</p>
         }
       </fieldset>
     </form>
@@ -165,9 +177,10 @@
     <footer>
       @if (error()) { <p class="form-error" role="alert">{{ error() }}</p> }
       <div class="totals" aria-live="polite">
-        <span>Productos {{ amount(subtotal) }}</span>
-        @if (packaging) { <span>Tápers {{ amount(packaging) }}</span> }
-        <strong>Total {{ amount(subtotal + packaging) }}</strong>
+        @if (packaging) {
+          <div class="total-breakdown"><span>Productos {{ amount(subtotal) }}</span><span>Tápers {{ amount(packaging) }}</span></div>
+        }
+        <div class="total-amount"><span>Total</span><strong>{{ amount(subtotal + packaging) }}</strong></div>
       </div>
       <button class="primary" type="submit" form="staff-order-form" [disabled]="form.invalid || !lines.length || saving()">
         {{ saving() ? 'Guardando…' : order() ? 'Guardar cambios' : 'Registrar pedido' }}
