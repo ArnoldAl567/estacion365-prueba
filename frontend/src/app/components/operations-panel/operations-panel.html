@@ -202,7 +202,7 @@
                 <h2>La atención de hoy</h2>
                 <p>{{ orders().length }} pedidos en curso</p>
               </div>
-              @if (isAdmin() && !editor()) {
+              @if (isAdmin()) {
                 <button class="ops-primary" type="button" (click)="openEditor('new')">+ Nuevo pedido</button>
               }
             </div>
@@ -293,7 +293,7 @@
                         >
                           Ver detalle <span>→</span>
                         </button>
-                        @if (isAdmin() && order.status === 'pending' && !editor()) {
+                        @if (isAdmin() && order.status === 'pending') {
                           <button class="detail-button" type="button" (click)="openEditor(order)"
                             [attr.aria-label]="'Editar pedido ' + order.number">Editar</button>
                         }

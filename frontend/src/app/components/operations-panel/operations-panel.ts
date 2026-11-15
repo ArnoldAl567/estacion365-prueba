@@ -372,7 +372,6 @@ export class OperationsPanel implements OnInit, OnDestroy {
   }
   openEditor(order: StaffOrder | 'new'): void {
     this.editor.set(order);
-    requestAnimationFrame(() => document.getElementById('order-editor-title')?.focus());
   }
 
   async orderSaved(order: StaffOrder): Promise<void> {

@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, OnInit, output, signal } from '@angular/core';
+import { AfterViewInit, Component, computed, ElementRef, inject, input, OnInit, output, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CATEGORIES, DAILY_ADDON_CATEGORIES } from '../../data/menu.data';
 import { CatalogItem, DailyPrices, DEFAULT_DAILY_PRICES } from '../../models/catalog.models';
@@ -22,7 +22,7 @@ interface DraftLine {
   templateUrl: './operations-order-form.html',
   styleUrl: './operations-order-form.scss',
 })
-export class OperationsOrderForm implements OnInit {
+export class OperationsOrderForm implements OnInit, AfterViewInit {
   readonly order = input.required<StaffOrder | null>();
   readonly saved = output<StaffOrder>();
   readonly closed = output<void>();
@@ -34,6 +34,7 @@ export class OperationsOrderForm implements OnInit {
   readonly loading = signal(true);
   readonly loaded = signal(false);
   readonly saving = signal(false);
+  readonly confirmingClose = signal(false);
   readonly error = signal('');
   readonly modifierError = signal('');
   readonly changingModifiers = signal(false);
@@ -62,8 +63,13 @@ export class OperationsOrderForm implements OnInit {
   starterKey = '';
   menuType: 'economico' | 'ejecutivo' = 'economico';
   private nextKey = 0;
+  private initialDraft = '';
   private lastAttempt?: { body: string; id: string };
   private readonly api = inject(LocalOperationsApi);
+  private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('orderDialog');
+  private readonly heading = viewChild.required<ElementRef<HTMLHeadingElement>>('orderHeading');
+  private readonly closeButton = viewChild.required<ElementRef<HTMLButtonElement>>('closeButton');
+  private readonly keepEditing = viewChild<ElementRef<HTMLButtonElement>>('keepEditing');
 
   ngOnInit(): void {
     const order = this.order();
@@ -79,8 +85,44 @@ export class OperationsOrderForm implements OnInit {
         modifiers: (item.modifiers ?? []).join(', '),
       }));
     }
+    this.initialDraft = JSON.stringify(this.buildDraft());
     void this.loadCatalog();
     void this.loadModifiers();
+  }
+
+  ngAfterViewInit(): void {
+    this.dialog().nativeElement.showModal();
+    this.heading().nativeElement.focus();
+  }
+
+  cancelDialog(event: Event): void {
+    event.preventDefault();
+    if (this.confirmingClose()) {
+      this.continueEditing();
+    } else {
+      this.requestClose();
+    }
+  }
+
+  requestClose(): void {
+    if (this.saving() || this.confirmingClose()) return;
+    if (this.initialDraft !== JSON.stringify(this.buildDraft()) || this.newModifier.trim()) {
+      this.confirmingClose.set(true);
+      requestAnimationFrame(() => this.keepEditing()?.nativeElement.focus());
+      return;
+    }
+    this.discardOrder();
+  }
+
+  continueEditing(): void {
+    this.confirmingClose.set(false);
+    const button = this.closeButton().nativeElement;
+    requestAnimationFrame(() => button.focus());
+  }
+
+  discardOrder(): void {
+    this.dialog().nativeElement.close();
+    this.closed.emit();
   }
 
   async loadModifiers(): Promise<void> {
@@ -195,17 +237,9 @@ export class OperationsOrderForm implements OnInit {
   }
 
   async submit(): Promise<void> {
-    if (!this.lines.length || this.saving()) return;
+    if (!this.lines.length || this.saving() || this.confirmingClose()) return;
     this.error.set('');
-    const customer = { ...this.customer };
-    const draft: StaffOrderDraft = {
-      customer,
-      items: this.lines.map(({ productId, quantity, notes, modifiers }) => ({
-        productId, quantity, notes,
-        modifiers: this.lineModifiers({ modifiers }),
-      })),
-      expectedTotalCents: this.subtotal + this.packaging,
-    };
+    const draft = this.buildDraft();
     if (draft.items.some((line) => line.modifiers!.length > 8 || line.modifiers!.some((value) => value.length > 40))) {
       this.error.set('Cada plato admite hasta 8 indicaciones de 40 caracteres cada una.');
       return;
@@ -215,12 +249,23 @@ export class OperationsOrderForm implements OnInit {
     this.saving.set(true);
     try {
       const { order } = await this.api.saveStaffOrder(draft, this.order(), this.lastAttempt.id);
+      this.dialog().nativeElement.close();
       this.saved.emit(order);
     } catch (error) {
       this.error.set(error instanceof Error ? error.message : 'No se pudo guardar el pedido.');
     } finally {
       this.saving.set(false);
     }
+  }
+
+  private buildDraft(): StaffOrderDraft {
+    return {
+      customer: { ...this.customer },
+      items: this.lines.map(({ productId, quantity, notes, modifiers }) => ({
+        productId, quantity, notes, modifiers: this.lineModifiers({ modifiers }),
+      })),
+      expectedTotalCents: this.subtotal + this.packaging,
+    };
   }
 
   private searchText(value: string): string {
