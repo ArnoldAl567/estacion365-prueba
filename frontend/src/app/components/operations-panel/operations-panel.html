@@ -19,7 +19,7 @@
           <div class="nav-group" [class.grouped]="group.pages.length > 1"
             [class.collapsed]="group.pages.length > 1 && !expandedGroups().includes(group.label)">
             @if (group.pages.length > 1) {
-              <button class="nav-group-toggle" type="button"
+              <button class="nav-group-toggle nav-root-item" type="button"
                 [class.current-group]="activeGroup() === group.label"
                 [attr.aria-expanded]="expandedGroups().includes(group.label)"
                 (click)="toggleNavGroup(group.label)">
@@ -33,13 +33,14 @@
                 <a
                   [href]="viewUrl(entry.id)"
                   (click)="navigate($event, entry.id)"
+                  [class.nav-root-item]="group.pages.length === 1"
                   [class.active]="isNavPageActive(entry.id)"
                   [attr.aria-label]="entry.label"
                   [attr.title]="entry.label"
                   [attr.aria-current]="isNavPageActive(entry.id) ? 'page' : null"
                 >
                   @if (group.pages.length === 1) {
-                    <svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="group.icon" /></svg>
+                    <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="group.icon" /></svg>
                   }
                   <span class="nav-label">{{ entry.label }}</span>
                 </a>

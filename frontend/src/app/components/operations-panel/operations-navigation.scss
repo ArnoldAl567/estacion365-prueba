@@ -92,3 +92,55 @@
 }
 
 @keyframes nav-enter { from { opacity: .7; transform: translateX(-20px); } }
+
+/* Root links and expandable groups share the same visual rhythm. */
+.ops-layout .ops-sidebar nav .nav-root-item {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) 16px;
+  align-items: center;
+  column-gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 11px 12px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+  letter-spacing: 0;
+  text-align: left;
+  color: #d5e4e9;
+}
+.ops-layout .ops-sidebar nav .nav-root-item > .nav-icon {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  color: inherit;
+}
+.ops-layout .ops-sidebar nav .nav-root-item > .group-chevron {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.75;
+  color: inherit;
+}
+.ops-layout .ops-sidebar nav .nav-root-item:is(.active, .current-group) {
+  color: #f3fff8;
+  background: #28564b;
+  border-color: #729d892e;
+  font-weight: 600;
+}
+.ops-layout .ops-sidebar nav .nav-root-item:hover { background: #244c4c; color: #fff; }
+.ops-layout .ops-sidebar nav .nav-root-item.active:hover { background: #306454; }
+.ops-layout .ops-sidebar nav .nav-group.grouped .nav-group-links a {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 20px;
+  min-height: 40px;
+}
