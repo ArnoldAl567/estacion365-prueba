@@ -26,7 +26,18 @@
           {{ error() }} <button type="button" (click)="retry.emit()">Reintentar conexión</button>
         </div>
       }
-      <form (ngSubmit)="submit()">
+      @if (initialized()) { <ng-container [ngTemplateOutlet]="credentialsForm" /> }
+      @else {
+        <button class="ops-primary" type="button" [disabled]="busy()" (click)="setupOpen.set(true)">Configurar primer acceso</button>
+        @if (setupOpen()) {
+          <app-record-dialog title="Crear administrador" [busy]="busy()" (closed)="setupOpen.set(false)">
+            @if (error()) { <p class="ops-alert error" role="alert">{{ error() }}</p> }
+            <ng-container [ngTemplateOutlet]="credentialsForm" />
+          </app-record-dialog>
+        }
+      }
+      <ng-template #credentialsForm>
+      <form #accessForm="ngForm" (ngSubmit)="accessForm.valid && submit()">
         @if (!initialized()) {
           @if (cloudStaging) {
             <label for="setup-code">Código de activación</label>
@@ -100,6 +111,7 @@
           <span>→</span>
         </button>
       </form>
+      </ng-template>
       <a class="back-to-menu" href="/">← Volver a la carta digital</a>
     </div>
   </section>

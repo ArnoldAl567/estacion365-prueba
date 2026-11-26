@@ -1,0 +1,204 @@
+<div class="analytics" [attr.aria-busy]="busy()">
+  <form class="analytics-card analytics-filter" #filter="ngForm" (ngSubmit)="load()">
+    <div class="filter-toolbar">
+      <div class="date-shortcuts" aria-label="Periodos rápidos">
+        @for (option of presets; track option.id) {
+          <button type="button" [attr.aria-pressed]="preset() === option.id" (click)="choosePreset(option.id)">{{ option.label }}</button>
+        }
+      </div>
+      <span class="time-zone">Hora de Lima</span>
+    </div>
+    <div class="filter-fields">
+      <label>Desde <input type="date" name="from" [(ngModel)]="from" (ngModelChange)="preset.set(null)" [max]="to" required></label>
+      <label>Hasta <input type="date" name="to" [(ngModel)]="to" (ngModelChange)="preset.set(null)" [min]="from" required></label>
+      @if (group() !== 'summary') {
+        <label>Categoría
+          <select name="category" [(ngModel)]="category">
+            <option value="">Todas las categorías</option>
+            @for (key of detail()?.categories ?? []; track key) { <option [value]="key">{{ categoryLabels()[key] ?? key }}</option> }
+          </select>
+        </label>
+      }
+      <button class="primary-button" type="submit" [disabled]="busy() || filter.invalid || from > to || (!!start && !!end && start > end && group() !== 'summary')">
+        {{ busy() ? 'Consultando…' : 'Aplicar filtros' }}
+      </button>
+    </div>
+    @if (group() !== 'summary') {
+      <details>
+        <summary>Horario y colaborador</summary>
+        <div class="filter-fields advanced">
+          <label>Desde la hora <input name="start" type="time" [(ngModel)]="start"></label>
+          <label>Hasta la hora <input name="end" type="time" [(ngModel)]="end"></label>
+          <label>Responsabilidad
+            <select name="attribution" [(ngModel)]="attribution" (ngModelChange)="staff = ''">
+              <option value="cashier">Registró el cobro</option>
+              <option value="order">Tomó el pedido</option>
+            </select>
+          </label>
+          <label>Colaborador
+            <select name="staff" [(ngModel)]="staff">
+              <option value="">Todos los colaboradores</option>
+              @if (attribution === 'order') { <option value="0">Carta digital</option> }
+              @for (entry of detail()?.staffOptions ?? []; track entry.id) { <option [value]="entry.id">{{ entry.name }}</option> }
+            </select>
+          </label>
+        </div>
+        @if (start && end && start > end) { <p class="field-error">La hora final debe ser igual o posterior a la inicial.</p> }
+      </details>
+    }
+  </form>
+
+  @if (error()) { <p class="report-feedback error" role="alert">{{ error() }}</p> }
+  @if (busy() && !summary() && !detail()) {
+    <div class="analytics-card report-loading" role="status"><span class="ui-spinner" aria-hidden="true"></span> Cargando reporte…</div>
+  }
+  @if (applied(); as period) {
+    @if (summary() || detail()) {
+      <p class="period">
+        {{ period.from | date:'d MMM y' }} – {{ period.to | date:'d MMM y' }}
+        @if (period.description) { <span>· {{ period.description }}</span> }
+      </p>
+    }
+  }
+
+  @if (summary(); as overview) {
+    <div class="analytics-metrics">
+      <article class="analytics-card metric-card primary-metric">
+        <span>Ventas cobradas</span><strong>{{ money(amount()) }}</strong><small>{{ paid() }} {{ paid() === 1 ? 'pedido cobrado' : 'pedidos cobrados' }}</small>
+      </article>
+      <article class="analytics-card metric-card">
+        <span>Pedidos recibidos</span><strong>{{ orderCount() | number }}</strong><small>Por fecha de registro</small>
+      </article>
+      <article class="analytics-card metric-card">
+        <span>Gastos de caja</span><strong>{{ money(overview.expenseTotal) }}</strong><small>Registrados en el periodo</small>
+      </article>
+      <article class="analytics-card metric-card">
+        <span>Ticket promedio</span><strong>{{ paid() ? money(amount() / paid()) : '—' }}</strong><small>Por pedido cobrado</small>
+      </article>
+    </div>
+  }
+
+  @if (summary() || detail()) {
+    <section class="analytics-card chart-card" [class.has-ranking]="group() !== 'summary'">
+      @if (group() !== 'summary') {
+        <aside class="sales-ranking">
+          <h2>{{ group() === 'article' ? 'Top 5 artículos' : 'Top 5 categorías' }}</h2>
+          <ul>
+            @for (entry of series(); track entry.key) {
+              <li><i [style.background]="entry.color"></i><span>{{ entry.name }}</span><strong>{{ money(entry.amount) }}</strong></li>
+            } @empty { <li class="empty-text">Aún no hay ventas en este periodo.</li> }
+          </ul>
+        </aside>
+      }
+      <div class="chart-panel">
+        <header class="card-heading">
+          <div>
+            <h2>{{ group() === 'summary' ? 'Cobros en el tiempo' : group() === 'article' ? 'Ventas por artículo' : 'Ventas por categoría' }}</h2>
+            <p>{{ group() === 'summary' ? 'Importes registrados en Caja' : 'Importe de productos de pedidos cobrados' }}</p>
+          </div>
+          <label class="chart-group">Agrupar por
+            <select [ngModel]="granularity()" (ngModelChange)="granularity.set($event); selectedDay.set(null)" [ngModelOptions]="{standalone: true}">
+              <option value="day">Días</option><option value="week">Semanas</option>
+            </select>
+          </label>
+        </header>
+        @if (amount() > 0) {
+          <div class="plot" aria-label="Gráfico de barras del periodo">
+            <div class="axis" aria-hidden="true">
+              @for (fraction of [1, .75, .5, .25, 0]; track fraction) {
+                <span>{{ money(upperBound() * fraction) }}</span>
+              }
+            </div>
+            <div class="plot-scroll">
+              <div class="plot-grid" [style.--columns]="chart().length">
+                @for (column of chart(); track column.key) {
+                  <button type="button" class="chart-column" [class.selected]="selectedDay() === column.key"
+                    [attr.aria-label]="column.label + ', ' + money(column.total)"
+                    [attr.aria-pressed]="selectedDay() === column.key"
+                    [title]="column.label + ' · ' + money(column.total)"
+                    (click)="selectedDay.set(selectedDay() === column.key ? null : column.key)">
+                    <span class="bar-stack" aria-hidden="true">
+                      @for (segment of column.segments; track segment.key) {
+                        <i [style.height.%]="100 * segment.amount / upperBound()" [style.background]="segment.color"></i>
+                      }
+                    </span>
+                    <span class="chart-label" aria-hidden="true">{{ column.label }}</span>
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+          @if (chartSelection(); as selected) {
+            <div class="chart-selection" aria-live="polite">
+              <strong>{{ selected.label }} · {{ money(selected.total) }}</strong>
+              @for (segment of selected.segments; track segment.key) {
+                @if (segment.amount > 0) { <span><i [style.background]="segment.color"></i>{{ segment.name }} {{ money(segment.amount) }}</span> }
+              }
+            </div>
+          }
+        } @else {
+          <div class="chart-empty"><strong>Sin ventas cobradas</strong><span>Prueba con otro periodo o filtro.</span></div>
+        }
+      </div>
+    </section>
+  }
+
+  @if (summary(); as overview) {
+    <div class="analytics-detail-grid">
+      <section class="analytics-card secondary-card">
+        <h2>Cobros por medio de pago</h2>
+        <ul class="detail-list">
+          @for (payment of overview.payments; track $index) {
+            <li><span>{{ payment.name }}<small>{{ payment.orders }} pedidos</small></span><strong>{{ money(payment.amount_cents) }}</strong></li>
+          } @empty { <li class="empty-text">Todavía no hay cobros en el periodo.</li> }
+        </ul>
+      </section>
+      <section class="analytics-card secondary-card">
+        <h2>Estado de los pedidos</h2>
+        <ul class="detail-list">
+          @for (status of orderStatuses; track status.id) {
+            <li><span class="order-state"><i [attr.data-status]="status.id"></i>{{ status.label }}</span>
+              <strong>{{ statusCounts().get(status.id) ?? 0 }}</strong></li>
+          }
+        </ul>
+      </section>
+    </div>
+  }
+
+  @if (detail()) {
+    <section class="analytics-card sales-table">
+      <header class="card-heading">
+        <div><h2>{{ group() === 'article' ? 'Detalle por artículo' : 'Detalle por categoría' }}</h2>
+          <p>{{ filteredRows().length | number }} resultados · {{ money(amount()) }} en el periodo</p></div>
+        <button type="button" [disabled]="busy() || !filteredRows().length" (click)="exportRows()">Exportar CSV</button>
+      </header>
+      <div class="table-controls">
+        <label>Buscar
+          <input type="search" [ngModel]="search()" (ngModelChange)="search.set($event)" placeholder="Nombre o categoría">
+        </label>
+        <label>Ordenar por
+          <select [ngModel]="orderBy()" (ngModelChange)="orderBy.set($event)">
+            <option value="amount">Importe</option><option value="units">Unidades</option><option value="name">Nombre</option>
+          </select>
+        </label>
+      </div>
+      <div class="sales-table-scroll" tabindex="0" role="region" aria-label="Tabla de ventas">
+        <table>
+          <thead><tr><th scope="col">{{ group() === 'article' ? 'Artículo' : 'Categoría' }}</th>
+            @if (group() === 'article') { <th scope="col">Categoría</th> }
+            <th scope="col">Unidades</th><th scope="col">Precio promedio</th><th scope="col">Importe</th></tr></thead>
+          <tbody>
+            @for (row of filteredRows(); track row.series) {
+              <tr><th scope="row">{{ row.name }}</th>
+                @if (group() === 'article') { <td>{{ categoryLabels()[row.category] ?? row.category }}</td> }
+                <td>{{ row.units | number }}</td><td>{{ row.units ? money(row.amount_cents / row.units) : '—' }}</td>
+                <td><strong>{{ money(row.amount_cents) }}</strong></td></tr>
+            } @empty {
+              <tr><td [attr.colspan]="group() === 'article' ? 5 : 4" class="empty-text">No hay resultados para los filtros aplicados.</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+</div>

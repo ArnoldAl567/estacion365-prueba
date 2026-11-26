@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use App\Services\OperationsAudit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -21,18 +22,20 @@ class StaffController extends Controller
             'name' => 'required|string|min:2|max:120',
             'username' => 'required|alpha_dash:ascii|min:3|max:40|unique:users,username',
             'password' => 'required|string|min:10|max:128',
-            'role' => ['required', Rule::in(['admin', 'kitchen'])],
+            'role' => ['required', Rule::in(User::ROLES)],
         ], ['username.unique' => 'Este usuario ya está registrado.', 'password.min' => 'Usa al menos 10 caracteres para la contraseña.']);
-        $user = User::create([...$data, 'email' => $data['username'].'@local.estacion365', 'active' => true]);
-
-        return ['user' => $user->profile()];
+        return DB::transaction(function () use ($request, $data) {
+            $user = User::create([...$data, 'email' => $data['username'].'@local.estacion365', 'active' => true]);
+            OperationsAudit::record($request->user()->id, 'equipo.alta', 'usuario', $user->id, ['rol' => $user->role]);
+            return ['user' => $user->profile()];
+        });
     }
 
     public function update(Request $request, User $user): array
     {
         $data = $request->validate([
             'name' => 'sometimes|required|string|min:2|max:120',
-            'role' => ['sometimes', Rule::in(['admin', 'kitchen'])],
+            'role' => ['sometimes', Rule::in(User::ROLES)],
             'active' => 'sometimes|boolean',
             'password' => 'sometimes|required|string|min:10|max:128',
         ]);
@@ -51,6 +54,8 @@ class StaffController extends Controller
             if (array_key_exists('password', $data) || ! $current->active) {
                 DB::table('sessions')->where('user_id', $current->id)->delete();
             }
+            OperationsAudit::record($request->user()->id, 'equipo.edicion', 'usuario', $user->id,
+                ['rol' => $current->role, 'activo' => $current->active]);
 
             return ['user' => $current->profile()];
         });

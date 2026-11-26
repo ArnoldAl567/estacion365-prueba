@@ -1,4 +1,4 @@
-import { inject, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
 import { CATEGORIES, PRODUCTS } from '../data/menu.data';
 import { DAILY_MAINS, DAILY_STARTERS } from '../data/daily-menu.data';
 import { catalogConfigured } from '../config/neon.config';
@@ -7,12 +7,17 @@ import { CatalogApiService } from './catalog-api.service';
 import { mapCatalogRows } from './catalog-menu.mapper';
 import { LOCAL_OPERATIONS_ENABLED } from '../config/local-operations.config';
 import { LocalOperationsApi } from './local-operations-api.service';
+import { CatalogCategoryLabels } from './catalog-category-labels.service';
 
 @Injectable({ providedIn: 'root' })
 export class MenuService {
   private readonly api = inject(CatalogApiService);
   private readonly localApi = inject(LocalOperationsApi);
-  readonly categories = signal(CATEGORIES);
+  private readonly categoryLabels = inject(CatalogCategoryLabels);
+  readonly categories = computed(() => CATEGORIES.map((category) => ({
+    ...category, name: this.categoryLabels.name(category.id, category.name),
+    shortName: this.categoryLabels.name(category.id, category.shortName),
+  })));
   readonly products = signal(PRODUCTS);
   readonly dailyStarters = signal(DAILY_STARTERS.filter(dish => dish.active !== false));
   readonly dailyMains = signal(DAILY_MAINS.filter(dish => dish.active !== false));

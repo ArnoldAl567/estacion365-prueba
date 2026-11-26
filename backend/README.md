@@ -6,11 +6,7 @@ Laravel 13 con PostgreSQL, integrado con la carta Angular en `/administrar`. Se 
 
 Requiere Node.js, Composer, PHP 8.3 o superior con `pdo_pgsql` y PostgreSQL 17. Los ejecutables `php`, `composer` y `psql` deben estar en PATH. En esta computadora ya están instalados.
 
-Desde la raíz, mantén abiertas dos terminales:
-
-```powershell
-npm run api:local
-```
+Desde la raíz, inicia el sistema con un solo comando. Este prepara PostgreSQL, inicia Laravel si hace falta y abre Angular:
 
 ```powershell
 npm start
@@ -23,6 +19,8 @@ npm start
 El primer comando prepara una instancia independiente de PostgreSQL en `backend/.local-postgres`, escuchando únicamente en `127.0.0.1:55436`. Crea `estacion_operaciones` y `estacion_operaciones_test`, aplica migraciones e inserta los productos faltantes. No borra pedidos ni reemplaza productos existentes. La contraseña aleatoria queda en `backend/.env`, excluido de Git. No copies ese archivo al frontend.
 
 Para preparar sin iniciar Laravel: `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/local-api.ps1 -SetupOnly`.
+
+Si PostgreSQL ya está activo, puedes iniciar solo Laravel desde esta carpeta con `php artisan serve --host=127.0.0.1 --port=8001`. `SERVER_PORT=8001` en `.env` establece el mismo puerto al usar `php artisan serve` sin opciones. Un servidor en el puerto 8000 no recibe las peticiones del frontend: eso provoca `ECONNREFUSED 127.0.0.1:8001`. Ante ese error, utiliza los dos comandos de inicio anteriores y conserva ambas terminales abiertas.
 
 ## Primer acceso y equipo
 

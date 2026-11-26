@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\OperationsAudit;
 use App\Services\SalonLayout;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SalonLayoutController extends Controller
 {
@@ -29,6 +31,10 @@ class SalonLayoutController extends Controller
             'zones.*.tables.*.label.required' => 'Escribe el nombre de cada mesa.',
         ]);
 
-        return $layout->save($data['zones'], (int) $data['revision']);
+        return DB::transaction(function () use ($layout, $data, $request) {
+            $result = $layout->save($data['zones'], (int) $data['revision']);
+            OperationsAudit::record($request->user()->id, 'salon.configuracion', 'plano', (int) $result['revision']);
+            return $result;
+        });
     }
 }

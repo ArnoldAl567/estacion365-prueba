@@ -3,8 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Order;
+use App\Services\MenuCategoryLabels;
 use App\Services\OrderPricing;
+use App\Services\OperationsAudit;
+use App\Services\ProductionTickets;
 use App\Services\SalonLayout;
+use App\Services\DailyProduction;
+use App\Services\InventoryLedger;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -14,7 +19,7 @@ use Illuminate\Validation\Rule;
 
 class OrderController extends Controller
 {
-    public function __construct(private readonly SalonLayout $salonLayout) {}
+    public function __construct(private readonly SalonLayout $salonLayout, private readonly ProductionTickets $production) {}
 
     public function catalog(): array
     {
@@ -22,7 +27,8 @@ class OrderController extends Controller
             ...((array) $item), 'price' => $item->price_cents === null ? null : $item->price_cents / 100,
         ]);
 
-        return ['items' => $items, 'prices' => DB::table('menu_prices')->get()->mapWithKeys(fn ($row) => [$row->type => $row->price_cents / 100])];
+        return ['items' => $items, 'prices' => DB::table('menu_prices')->get()->mapWithKeys(fn ($row) => [$row->type => $row->price_cents / 100]),
+            'categoryLabels' => MenuCategoryLabels::names()];
     }
 
     public function store(Request $request, OrderPricing $pricing): JsonResponse
@@ -109,6 +115,7 @@ class OrderController extends Controller
         ], JSON_THROW_ON_ERROR));
 
         $order = DB::transaction(function () use ($request, $data, $customer, $lines, $hash, $pricing, $staff) {
+            app(InventoryLedger::class)->lock();
             DB::select('select pg_advisory_xact_lock(hashtextextended(?, 0))', [$data['requestId']]);
             $existing = Order::where('request_id', $data['requestId'])->first();
             if ($existing) {
@@ -130,6 +137,9 @@ class OrderController extends Controller
                 ...$this->customerAttributes($customer), 'source' => $staff ? 'staff' : 'web',
             ]);
             $order->events()->create(['status' => 'pending', 'user_id' => $staff ? $request->user()->id : null]);
+            app(DailyProduction::class)->reserve($order);
+            $this->production->sync($order);
+            OperationsAudit::record($staff ? $request->user()->id : null, 'pedido.registrado', 'pedido', $order->id);
 
             return $order;
         });
@@ -141,14 +151,19 @@ class OrderController extends Controller
     {
         $data = $this->validateDraft($request, true, true);
         $saved = DB::transaction(function () use ($request, $order, $pricing, $data) {
+            app(InventoryLedger::class)->lock();
             $customer = $this->salonLayout->resolveTable($data['customer']);
             $current = Order::lockForUpdate()->findOrFail($order->id);
             abort_unless($current->status === 'pending', 409, 'Solo se pueden editar pedidos pendientes.');
             abort_unless((int) $current->revision === (int) $data['expectedRevision'], 409, 'Otra persona editó este pedido. Cierra el formulario y abre la versión actualizada.');
+            abort_if(DB::table('order_payments')->where('order_id', $current->id)->exists(), 409, 'El pedido ya fue cobrado.');
             $amounts = $pricing->calculate($data['items'], $data['customer']['method'], $current->items);
             abort_unless($amounts['total_cents'] === (int) $data['expectedTotalCents'], 409, 'Los precios cambiaron. Revisa el total actualizado.');
             $current->update([...$amounts, ...$this->customerAttributes($customer), 'revision' => $current->revision + 1]);
+            app(DailyProduction::class)->reserve($current);
             $current->events()->create(['status' => 'pending', 'user_id' => $request->user()->id, 'reason' => 'Edición del pedido']);
+            $this->production->sync($current);
+            OperationsAudit::record($request->user()->id, 'pedido.editado', 'pedido', $current->id);
 
             return $current;
         });
@@ -191,22 +206,44 @@ class OrderController extends Controller
                 'pagination' => ['page' => $page->currentPage(), 'lastPage' => $page->lastPage(), 'total' => $page->total()]];
         }
 
-        $orders = $query->whereIn('status', ['pending', 'preparing', 'ready'])->orderByDesc('id')->get();
+        $orders = $query->where(fn ($q) => $q->whereIn('status', ['pending', 'preparing', 'ready'])
+            ->orWhere(fn ($open) => $open->where('status', 'delivered')->where('delivery_method', 'table')->whereNull('table_closed_at')))
+            ->orderByDesc('id')->get();
+        $tickets = $this->tickets($orders->modelKeys());
+        $payments = DB::table('order_payments')->whereIn('order_id', $orders->modelKeys())->pluck('paid_at', 'order_id')
+            ->map(fn ($date) => CarbonImmutable::parse($date, 'UTC')->toIso8601String());
         $start = CarbonImmutable::now('America/Lima')->startOfDay()->utc();
         $today = Order::where('created_at', '>=', $start)->where('status', '!=', 'cancelled')
             ->selectRaw('count(*) as count, coalesce(sum(total_cents), 0) as total')->first();
 
-        return ['orders' => $orders->map(fn ($order) => $order->staffDetails()),
+        return ['orders' => $orders->map(fn ($order) => [
+            ...$order->staffDetails(), 'paidAt' => $payments[$order->id] ?? null,
+            'tickets' => $tickets[$order->id] ?? [],
+        ]),
             'summary' => ['todayCount' => (int) $today->count, 'todayTotalCents' => (int) $today->total]];
     }
 
     public function show(Order $order): array
     {
-        return ['order' => [...$order->staffDetails(), 'events' => $order->events()->with('user:id,name')->get()->map(fn ($event) => [
+        $paid = DB::table('order_payments')->where('order_id', $order->id)->value('paid_at');
+        return ['order' => [...$order->staffDetails(), 'paidAt' => $paid ? CarbonImmutable::parse($paid, 'UTC')->toIso8601String() : null,
+            'tickets' => $this->tickets([$order->id])[$order->id] ?? [],
+            'events' => $order->events()->with('user:id,name')->get()->map(fn ($event) => [
             'status' => $event->status, 'at' => $event->created_at->toIso8601String(), 'by' => $event->user?->name ?? 'Carta digital',
             'edited' => $event->status === 'pending' && $event->reason === 'Edición del pedido',
             'reason' => $event->reason,
         ])]];
+    }
+
+    private function tickets(array $ids): \Illuminate\Support\Collection
+    {
+        return DB::table('production_tickets')->join('production_centers', 'production_centers.code', '=', 'production_tickets.center')
+            ->whereIn('order_id', $ids)
+            ->select('production_tickets.*', 'production_centers.name', 'production_centers.printer')->orderBy('production_tickets.id')
+            ->get()->groupBy('order_id')->map(fn ($tickets) => $tickets->map(fn ($ticket) => [
+                'center' => $ticket->center, 'name' => $ticket->name, 'status' => $ticket->status, 'printer' => $ticket->printer,
+                'items' => json_decode($ticket->items, true, flags: JSON_THROW_ON_ERROR),
+            ])->values());
     }
 
     public function update(Request $request, Order $order): array
@@ -218,23 +255,42 @@ class OrderController extends Controller
             'reason' => 'required_if:status,cancelled|nullable|string|max:240',
         ], ['reason.required_if' => 'Escribe el motivo de la cancelación.']);
         $saved = DB::transaction(function () use ($request, $order, $data) {
+            app(InventoryLedger::class)->lock();
             $current = Order::lockForUpdate()->findOrFail($order->id);
             abort_unless($current->status === $data['expectedStatus'], 409, 'Otra persona actualizó este pedido. La vista se actualizará.');
             abort_if(isset($data['expectedRevision']) && (int) $current->revision !== (int) $data['expectedRevision'], 409, 'El contenido del pedido cambió. Revísalo antes de continuar.');
             $next = ['pending' => 'preparing', 'preparing' => 'ready', 'ready' => 'delivered'];
             $cancelling = $data['status'] === 'cancelled';
+            abort_if($request->user()->role === 'waiter' && in_array($data['status'], ['preparing', 'ready'], true),
+                403, 'Cocina actualiza la preparación.');
+            abort_if($cancelling && DB::table('order_payments')->where('order_id', $current->id)->exists(), 409, 'El pedido ya fue cobrado y requiere una devolución antes de cancelarse.');
             $allowed = $cancelling ? isset($next[$current->status]) : ($next[$current->status] ?? null) === $data['status'];
             abort_unless($allowed, 422, 'Este cambio de estado no está permitido.');
+            if ($cancelling) app(DailyProduction::class)->cancel($current);
+            else app(DailyProduction::class)->start($current, $request->user()->id);
             $current->status = $data['status'];
             $current->save();
+            $this->production->bulkStatus($current, $data['status']);
             $current->events()->create([
                 'status' => $data['status'],
                 'user_id' => $request->user()->id,
                 'reason' => $cancelling ? $data['reason'] : null,
             ]);
+            OperationsAudit::record($request->user()->id, 'pedido.'.$data['status'], 'pedido', $current->id);
 
             return $current;
         });
+
+        return ['order' => $saved->staffDetails()];
+    }
+
+    public function advanceTicket(Request $request, Order $order, string $center): array
+    {
+        $data = $request->validate([
+            'expectedStatus' => ['required', Rule::in(['pending', 'preparing'])],
+            'expectedRevision' => 'required|integer|min:0',
+        ]);
+        $saved = $this->production->advance($order->id, $center, $data['expectedStatus'], (int) $data['expectedRevision'], $request->user()->id);
 
         return ['order' => $saved->staffDetails()];
     }

@@ -1,5 +1,9 @@
 export type OrderStatus = 'pending' | 'preparing' | 'ready' | 'delivered' | 'cancelled';
-export type StaffRole = 'admin' | 'kitchen';
+export const STAFF_ROLES = {
+  admin: 'Administrador', kitchen: 'Cocina', waiter: 'Mesero',
+  cashier: 'Caja', stock: 'Inventario',
+} as const;
+export type StaffRole = keyof typeof STAFF_ROLES;
 export interface StaffUser {
   id: number;
   name: string;
@@ -40,8 +44,19 @@ export interface StaffOrder extends OrderReceipt {
   address: string | null;
   reference: string | null;
   tableLabel?: string | null;
+  tableClosedAt?: string | null;
+  paidAt?: string | null;
+  tickets?: ProductionTicket[];
   revision?: number;
   events?: { status: OrderStatus; at: string; by: string; reason?: string | null; edited?: boolean }[];
+}
+
+export interface ProductionTicket {
+  center: string;
+  name: string;
+  printer: string | null;
+  status: OrderStatus;
+  items: OrderLine[];
 }
 
 export interface StaffOrderDraft {
@@ -76,7 +91,7 @@ export interface SalonLayout {
 
 export function staffOrderMethod(order: StaffOrder): string {
   if (order.method === 'table') return order.tableLabel ? 'Mesa ' + order.tableLabel : 'Salón';
-  return order.method === 'delivery' ? 'Delivery' : 'Para llevar';
+  return order.method === 'delivery' ? 'Delivery' : 'Para recoger';
 }
 
 export function staffOrderPayment(order: StaffOrder): string {

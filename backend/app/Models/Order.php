@@ -13,7 +13,7 @@ class Order extends Model
 
     protected function casts(): array
     {
-        return ['items' => 'array'];
+        return ['items' => 'array', 'table_closed_at' => 'datetime'];
     }
 
     public function events(): HasMany
@@ -49,6 +49,7 @@ class Order extends Model
             'tableLabel' => $this->table_label,
             'source' => $this->source ?? 'web',
             'revision' => (int) $this->revision,
+            'tableClosedAt' => $this->table_closed_at?->toIso8601String(),
         ];
     }
 }

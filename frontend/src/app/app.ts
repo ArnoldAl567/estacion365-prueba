@@ -15,6 +15,7 @@ import { MenuService } from './services/menu.service';
 import { isBusinessOpen, OPEN_24_HOURS } from './services/business-hours';
 import { LOCAL_OPERATIONS_ENABLED } from './config/local-operations.config';
 import { LocalOperationsApi } from './services/local-operations-api.service';
+import { CatalogCategoryLabels } from './services/catalog-category-labels.service';
 import { ORDER_STATUSES } from './models/operations.models';
 
 registerLocaleData(localeEsPe);
@@ -31,6 +32,8 @@ const normalizeSearch = (value: string): string => value.normalize('NFD').replac
 export class App implements OnDestroy {
   readonly directOrdering = LOCAL_OPERATIONS_ENABLED;
   readonly operations = inject(LocalOperationsApi);
+  private readonly categoryLabels = inject(CatalogCategoryLabels);
+  readonly dailyMenuName = computed(() => this.categoryLabels.name('menu-dia', 'Menú del día'));
   readonly trackingLabel = computed(() => ORDER_STATUSES.find(status => status.id === this.operations.receipt()?.status)?.label ?? 'Recibido');
   readonly menu = inject(MenuService);
   readonly cart = inject(CartService);
@@ -80,6 +83,7 @@ export class App implements OnDestroy {
   readonly products = this.menu.products;
   readonly dailyAddonSections = computed(() => DAILY_ADDON_CATEGORIES.map(category => ({
     ...category,
+    name: this.categoryLabels.name(category.id, category.name),
     products: this.products().filter(product => product.categoryId === category.id && product.active !== false),
   })).filter(category => category.products.length > 0));
   readonly activeCategory = signal<'all' | CategoryId>('all');

@@ -1,0 +1,58 @@
+<section class="workflows">
+  <div class="workflow-tabs" aria-label="Tipo de incidencia">
+    <button type="button" [attr.aria-pressed]="kind==='merma'" [disabled]="busy()" (click)="changeKind('merma')">Mermas</button>
+    <button type="button" [attr.aria-pressed]="kind==='desvio'" [disabled]="busy()" (click)="changeKind('desvio')">Desvíos de inventario</button>
+    <button class="ops-primary" type="button" [disabled]="busy() || !data()" (click)="open()">+ {{kind==='merma'?'Registrar merma':'Registrar conteo'}}</button>
+  </div>
+  @if(error()){<p class="workflow-error" role="alert">{{error()}} <button type="button" [disabled]="busy()" (click)="load()">Reintentar</button></p>}
+  @if(notice()){<p class="workflow-notice" role="status">{{notice()}}</p>}
+  @if(data();as view){
+    <section class="workflow-card"><h2>{{kind==='merma'?'Pérdidas de insumos':'Diferencias entre stock y conteo físico'}}</h2>
+      <p>{{kind==='merma'?'Registra desperdicios, deterioro, vencimientos o accidentes.':'Compara lo registrado con las existencias reales. Un faltante no se clasifica automáticamente como merma.'}} Guardar deja el registro pendiente; solo un administrador puede aplicar el ajuste.</p>
+      <div class="workflow-inline"><strong>Pendientes: {{view.summary.pending}}</strong><span>{{kind==='merma'?'Pérdidas aplicadas':'Faltantes aplicados'}}: {{money(view.summary.loss_cents)}}</span><span>Sobrantes aplicados: {{money(view.summary.surplus_cents)}}</span></div>
+      <p class="workflow-period">Indicadores correspondientes a los filtros seleccionados. Fechas y horas de Lima.</p>
+      <form class="workflow-filters" (ngSubmit)="filter()">
+        <label>Desde <input type="date" name="from" [(ngModel)]="filters.from"></label><label>Hasta <input type="date" name="to" [(ngModel)]="filters.to"></label>
+        <label>Categoría <select name="category" [(ngModel)]="filters.category_id"><option value="">Todas</option>@for(c of view.categories;track c.id){<option [value]="c.id">{{c.name}}</option>}</select></label>
+        <label>Insumo <select name="item" [(ngModel)]="filters.item_id"><option value="">Todos</option>@for(i of view.items;track i.id){<option [value]="i.id">{{i.name}}</option>}</select></label>
+        <label>Estado <select name="state" [(ngModel)]="filters.state"><option value="">Todos</option><option value="pending">Pendiente</option><option value="applied">Aplicada</option><option value="cancelled">Anulada</option></select></label>
+        <button type="submit" [disabled]="busy()">Filtrar</button>
+      </form>
+      <div class="workflow-table" tabindex="0" role="region" aria-label="Historial de desvíos y mermas"><table>
+        <thead><tr><th>Fecha</th><th>Insumo</th><th>Stock registrado</th><th>Conteo físico</th><th>Diferencia</th><th>Valor del ajuste</th><th>Motivo</th><th>Responsable</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <tbody>@for(r of view.records.data;track r.id){<tr>
+          <td>{{r.created_at|operationTimestamp}}</td><th scope="row">{{r.name}}</th><td>{{r.system_milli===null?'—':(r.system_milli/1000|number:'1.0-3')}} {{r.symbol}}</td>
+          <td>{{r.counted_milli===null?'—':(r.counted_milli/1000|number:'1.0-3')}} {{r.counted_milli===null?'':r.symbol}}</td><td>{{r.delta_milli/1000|number:'1.0-3'}} {{r.symbol}}</td><td>{{money(r.cost_cents)}}</td><td>{{r.reason}}</td><td>{{r.author}}</td><td><span class="ui-state" [class.muted]="r.state!=='applied'">{{stateName(r.state)}}</span></td>
+          <td><div class="workflow-inline"><button type="button" (click)="detail.set(r)">Ver detalle</button>
+            @if(r.state==='pending' && api.user()?.role==='admin'){<button class="ops-primary" type="button" [disabled]="busy()" (click)="apply(r)">Aplicar</button>}
+            @if(r.state!=='cancelled' && (api.user()?.role==='admin'||(r.state==='pending'&&r.created_by===api.user()?.id))){<button class="danger-action" type="button" [disabled]="busy()" (click)="openCancellation(r)">Anular</button>}
+          </div></td></tr>}@empty{<tr><td colspan="10">No hay registros para estos filtros.</td></tr>}</tbody>
+      </table></div>
+      <div class="workflow-pagination"><button type="button" [disabled]="busy()||page===1" (click)="paginate(-1)">Anterior</button><span>Página {{view.records.current_page}}</span><button type="button" [disabled]="busy()||!view.records.next_page_url" (click)="paginate(1)">Siguiente</button></div>
+    </section>
+  }@else{<p role="status">Cargando registros…</p>}
+  @if(editor();as mode){<app-record-dialog [title]="mode==='cancel'?'Anular registro':kind==='merma'?'Registrar merma':'Registrar conteo físico'" [busy]="busy()" (closed)="editor.set(null)">
+    @if(error()){<p class="workflow-error" role="alert">{{error()}}</p>}
+    @if(mode==='new'){
+      <form class="workflow-card" #recordForm="ngForm" (ngSubmit)="recordForm.valid && save()"><fieldset class="record-form-fields" [disabled]="busy()">
+        <label>Insumo <select name="item" required [(ngModel)]="form.item_id" (ngModelChange)="selectItem()"><option [ngValue]="null">Selecciona</option>@for(i of data()?.items??[];track i.id){<option [ngValue]="i.id">{{i.name}} ({{i.symbol}})</option>}</select></label>
+        @if(snapshot;as i){<p>Stock registrado: <strong>{{i.stock_milli/1000|number:'1.0-3'}} {{i.symbol}}</strong> · Valor: {{money(i.stock_value_cents)}}</p>}
+        @if(kind==='merma'){<label>Cantidad perdida <input name="quantity" type="number" required min=".001" max="1000000" step=".001" [(ngModel)]="form.quantity"></label>}
+        @else{<label>Cantidad contada físicamente <input name="counted" type="number" required min="0" max="1000000" step=".001" [(ngModel)]="form.counted"></label>}
+        @if(snapshot){<p>Diferencia: {{difference()|number:'1.0-3'}} {{snapshot.symbol}}</p>
+          @if(kind==='desvio'&&snapshot.stock_milli===0&&difference()>0){<label>Valor total del sobrante (S/) <input name="cost" type="number" required min="0" max="1000000" step=".01" [(ngModel)]="form.incomingCost"></label>}
+        }
+        <label>Motivo <input name="reason" required minlength="3" maxlength="180" [(ngModel)]="form.reason" placeholder="Ej. Vencimiento, derrame o diferencia de conteo"></label>
+        <label>Observaciones <textarea name="notes" maxlength="500" rows="3" [(ngModel)]="form.notes"></textarea></label>
+        <p>El registro quedará pendiente. No vuelvas a registrar esta misma incidencia en Movimientos.</p>
+        <button class="ops-primary" type="submit" [disabled]="recordForm.invalid||busy()||!snapshot||difference()===0||form.reason.trim().length<3">Guardar pendiente</button>
+      </fieldset></form>
+    }@else{
+      <form class="workflow-card" #cancelForm="ngForm" (ngSubmit)="cancelForm.valid&&cancel()"><label>Motivo de anulación <textarea name="reason" [(ngModel)]="cancellationReason" required minlength="3" maxlength="180" rows="3"></textarea></label><button class="danger-action" [disabled]="busy()||cancelForm.invalid||cancellationReason.trim().length<3">Continuar con la anulación</button></form>
+    }
+  </app-record-dialog>}
+  @if(detail();as r){<app-record-dialog title="Detalle de incidencia" (closed)="detail.set(null)"><section class="workflow-card">
+    <h2>{{r.name}} · {{stateName(r.state)}}</h2><p>Registrada: {{r.created_at|operationTimestamp}} · {{r.author}}</p><p>Diferencia: {{r.delta_milli/1000|number:'1.0-3'}} {{r.symbol}} · Valor: {{money(r.cost_cents)}}</p><p>Motivo: {{r.reason}}</p><p>Observaciones: {{r.notes||'Sin observaciones'}}</p>
+    @if(r.applied_at){<p>Aplicada: {{r.applied_at|operationTimestamp}} · {{r.approver}}</p>}@if(r.cancelled_at){<p>Anulada: {{r.cancelled_at|operationTimestamp}} · {{r.canceller}}<br>Motivo: {{r.cancellation_reason}}</p>}
+  </section></app-record-dialog>}
+</section>

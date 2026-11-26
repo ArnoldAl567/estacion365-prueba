@@ -1,6 +1,8 @@
-import { Injectable, signal } from '@angular/core';
+import { inject, Injectable, signal } from '@angular/core';
 import { CatalogItem, DailyPrices } from '../models/catalog.models';
 import { CartItem, CustomerDetails } from '../models/menu.models';
+import { OperationsSettings } from '../models/workflow.models';
+import { CatalogCategoryLabels } from './catalog-category-labels.service';
 import { optimizeCatalogPhoto } from './catalog-image';
 import {
   DishDemandReport,
@@ -22,6 +24,11 @@ interface SessionResponse {
   user: StaffUser | null;
   csrfToken: string;
 }
+interface LocalCatalogResponse {
+  items: CatalogItem[];
+  prices: DailyPrices;
+  categoryLabels?: Partial<Record<string, string>>;
+}
 const RECEIPT_KEY = 'estacion-local-last-order-v1';
 
 export class OperationsError extends Error {
@@ -35,6 +42,7 @@ export class OperationsError extends Error {
 
 @Injectable({ providedIn: 'root' })
 export class LocalOperationsApi {
+  private readonly categoryLabels = inject(CatalogCategoryLabels);
   readonly user = signal<StaffUser | null>(null);
   readonly initialized = signal(true);
   readonly receipt = signal<OrderReceipt | null>(this.restoreReceipt());
@@ -72,8 +80,16 @@ export class LocalOperationsApi {
     this.applySession(await this.request<SessionResponse>('/logout', 'POST', {}));
   }
 
-  catalog(): Promise<{ items: CatalogItem[]; prices: DailyPrices }> {
-    return this.request('/catalog');
+  async catalog(): Promise<LocalCatalogResponse> {
+    const data = await this.request<LocalCatalogResponse>('/catalog');
+    this.categoryLabels.names.set(data.categoryLabels ?? {});
+    return data;
+  }
+  async updateCategory(category: string, name: string, center: string): Promise<OperationsSettings> {
+    const data = await this.workflow<OperationsSettings>('/operations-settings/categories', { category, name, center });
+    this.categoryLabels.names.set(data.categoryLabels ?? {});
+    this.announceCatalogChange();
+    return data;
   }
   async createCatalogItem(item: CatalogItem): Promise<CatalogItem> {
     const result = await this.request<{ item: CatalogItem }>('/catalog/items', 'POST', item);
@@ -150,8 +166,22 @@ export class LocalOperationsApi {
     return this.request('/salon-layout', 'PUT', layout);
   }
 
+  workflow<T>(path: string, body?: object): Promise<T> {
+    return this.request(path, body === undefined ? 'GET' : 'POST', body);
+  }
+
+  advanceTicket(order: StaffOrder, center: string, expectedStatus: string): Promise<{ order: StaffOrder }> {
+    return this.request('/orders/' + order.id + '/tickets/' + encodeURIComponent(center), 'PATCH', {
+      expectedStatus, expectedRevision: order.revision ?? 0,
+    });
+  }
+
   createOrderModifier(name: string): Promise<{ modifiers: OrderModifier[] }> {
     return this.request('/order-modifiers', 'POST', { name });
+  }
+
+  updateOrderModifier(id: number, name: string): Promise<{ modifiers: OrderModifier[] }> {
+    return this.request('/order-modifiers/' + id, 'PATCH', { name });
   }
 
   async deleteOrderModifier(id: number): Promise<void> {

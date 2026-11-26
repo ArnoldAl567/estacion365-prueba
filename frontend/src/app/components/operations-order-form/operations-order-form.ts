@@ -4,6 +4,8 @@ import { CATEGORIES, DAILY_ADDON_CATEGORIES } from '../../data/menu.data';
 import { CatalogItem, DailyPrices, DEFAULT_DAILY_PRICES } from '../../models/catalog.models';
 import { OrderModifier, StaffOrder, StaffOrderDraft } from '../../models/operations.models';
 import { LocalOperationsApi } from '../../services/local-operations-api.service';
+import { CatalogCategoryLabels } from '../../services/catalog-category-labels.service';
+import { RemovalConfirmation } from '../../services/removal-confirmation.service';
 
 interface DraftLine {
   key: number;
@@ -30,6 +32,7 @@ export class OperationsOrderForm implements OnInit, AfterViewInit {
   readonly saved = output<StaffOrder>();
   readonly closed = output<void>();
   readonly categories = [...CATEGORIES, ...DAILY_ADDON_CATEGORIES];
+  readonly categoryLabels = inject(CatalogCategoryLabels);
   readonly menuTypes = [
     { id: 'economico' as const, label: 'Económico' },
     { id: 'ejecutivo' as const, label: 'Ejecutivo' },
@@ -40,9 +43,8 @@ export class OperationsOrderForm implements OnInit, AfterViewInit {
   readonly confirmingClose = signal(false);
   readonly error = signal('');
   readonly modifierError = signal('');
-  readonly changingModifiers = signal(false);
+  readonly loadingModifiers = signal(false);
   readonly modifiers = signal<OrderModifier[]>([]);
-  newModifier = '';
   readonly catalog = signal<CatalogItem[]>([]);
   readonly prices = signal<DailyPrices>(DEFAULT_DAILY_PRICES);
   readonly category = signal('');
@@ -69,6 +71,7 @@ export class OperationsOrderForm implements OnInit, AfterViewInit {
   private initialDraft = '';
   private lastAttempt?: { body: string; id: string };
   private readonly api = inject(LocalOperationsApi);
+  private readonly confirmation = inject(RemovalConfirmation);
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('orderDialog');
   private readonly heading = viewChild.required<ElementRef<HTMLHeadingElement>>('orderHeading');
   private readonly closeButton = viewChild.required<ElementRef<HTMLButtonElement>>('closeButton');
@@ -112,7 +115,7 @@ export class OperationsOrderForm implements OnInit, AfterViewInit {
 
   requestClose(): void {
     if (this.saving() || this.confirmingClose()) return;
-    if (this.initialDraft !== JSON.stringify(this.buildDraft()) || this.newModifier.trim()) {
+    if (this.initialDraft !== JSON.stringify(this.buildDraft())) {
       this.confirmingClose.set(true);
       requestAnimationFrame(() => this.keepEditing()?.nativeElement.focus());
       return;
@@ -132,42 +135,14 @@ export class OperationsOrderForm implements OnInit, AfterViewInit {
   }
 
   async loadModifiers(): Promise<void> {
-    this.changingModifiers.set(true);
+    this.loadingModifiers.set(true);
     this.modifierError.set('');
     try {
       this.modifiers.set((await this.api.orderModifiers()).modifiers);
     } catch {
       this.modifierError.set('No se pudieron cargar las opciones. Puedes escribirlas en cada plato.');
     } finally {
-      this.changingModifiers.set(false);
-    }
-  }
-
-  async saveModifier(): Promise<void> {
-    if (!this.newModifier.trim() || this.changingModifiers()) return;
-    this.changingModifiers.set(true);
-    this.modifierError.set('');
-    try {
-      this.modifiers.set((await this.api.createOrderModifier(this.newModifier.trim())).modifiers);
-      this.newModifier = '';
-    } catch (error) {
-      this.modifierError.set(error instanceof Error ? error.message : 'No se pudo guardar la opción.');
-    } finally {
-      this.changingModifiers.set(false);
-    }
-  }
-
-  async removeModifier(modifier: OrderModifier): Promise<void> {
-    if (this.changingModifiers()) return;
-    this.changingModifiers.set(true);
-    this.modifierError.set('');
-    try {
-      await this.api.deleteOrderModifier(modifier.id);
-      this.modifiers.update((entries) => entries.filter(({ id }) => id !== modifier.id));
-    } catch {
-      this.modifierError.set('No se pudo eliminar la opción.');
-    } finally {
-      this.changingModifiers.set(false);
+      this.loadingModifiers.set(false);
     }
   }
 
@@ -224,8 +199,12 @@ export class OperationsOrderForm implements OnInit, AfterViewInit {
     this.productKey = '';
   }
 
-  removeLine(key: number): void {
-    this.lines = this.lines.filter((line) => line.key !== key);
+  async removeLine(key: number): Promise<void> {
+    if (this.saving()) return;
+    const line = this.lines.find((line) => line.key === key);
+    if (line && await this.confirmation.ask('Quitar producto', 'Se quitará «' + line.name + '» de este pedido.', 'Quitar producto')) {
+      this.lines = this.lines.filter((line) => line.key !== key);
+    }
   }
 
   get subtotal(): number {

@@ -1,0 +1,30 @@
+.recipe-ingredients-summary {
+  display: grid;
+  gap: 8px;
+  width: 320px;
+  max-width: 100%;
+}
+.recipe-ingredients-count { color: #244d43; font-size: 13px; }
+.recipe-ingredient-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+.recipe-ingredient-tag {
+  max-width: 105px;
+  padding: 4px 8px;
+  border: 1px solid #d6e7e0;
+  border-radius: 6px;
+  background: #eff7f3;
+  color: #38594e;
+  font-size: 11px;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recipe-ingredients-more { color: #42616e; font-size: 11px; font-weight: 650; white-space: nowrap; }
+@media (max-width: 600px) {
+  .recipe-ingredients-summary { width: 220px; }
+}
+.ingredient-tabs { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px; width: fit-content; max-width: 100%; background: #e7eef2; border-radius: 12px; }
+.ingredient-tabs a { padding: 11px 16px; border-radius: 8px; text-decoration: none; color: #405c6b; font-size: 13px; font-weight: 650; transition: background .15s; }
+.ingredient-tabs a:hover { background: #f5f9fb; }
+.ingredient-tabs a.active { background: #fff; color: #14694e; box-shadow: 0 2px 5px #183c4512; }
+.ingredient-tabs a:focus-visible { outline: 3px solid #318fbd; outline-offset: 2px; }

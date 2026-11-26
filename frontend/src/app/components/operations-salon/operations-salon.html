@@ -10,10 +10,10 @@
   } @else if (!layout()) {
     <p role="status">Cargando el plano…</p>
   }
-  <button class="configure-button" type="button" [disabled]="loading() || saving() || !layout()"
-    aria-haspopup="dialog" (click)="startEditing()">
-    Configurar salones y mesas
-  </button>
+  @if (canConfigure()) {
+    <button class="configure-button" type="button" [disabled]="loading() || saving() || !layout()"
+      aria-haspopup="dialog" (click)="startEditing()">Configurar salones y mesas</button>
+  }
 </div>
 <dialog class="layout-dialog" #layoutDialog aria-labelledby="layout-dialog-title" (cancel)="cancelDialog($event)">
   <header class="layout-header" [inert]="confirmingClose()">
@@ -30,7 +30,7 @@
                 <label>Nombre del salón
                   <input [name]="'zone-' + zone.id" [(ngModel)]="zone.name" required maxlength="60" />
                 </label>
-                <button class="remove-option" type="button" (click)="settings.zones.splice(zoneIndex, 1)">Quitar salón</button>
+                <button class="remove-option" type="button" (click)="removeZone(settings, zone)">Quitar salón</button>
               </div>
               <div class="table-editor-grid">
                 @for (table of zone.tables; track table.id; let tableIndex = $index) {
@@ -39,7 +39,7 @@
                       <input [name]="'table-' + table.id" [(ngModel)]="table.label" required maxlength="40" />
                     </label>
                     <button class="remove-option" type="button" [attr.aria-label]="'Quitar mesa ' + table.label"
-                      (click)="zone.tables.splice(tableIndex, 1)">Quitar</button>
+                      (click)="removeTable(zone, table)">Quitar</button>
                   </div>
                 }
               </div>
@@ -74,6 +74,30 @@
 @if (layout() && !zones().length) {
   <p>Configura un salón y agrega sus mesas para empezar.</p>
 }
+@if (settingsMode() && layout()) {
+  <section class="workflow-card">
+    <h2>Mesas del restaurante</h2>
+    <div class="workflow-table" tabindex="0" role="region" aria-label="Tabla de registros">
+      <table>
+        <thead><tr><th scope="col">Mesa</th><th scope="col">Salón</th><th scope="col">Estado</th><th scope="col">Pedidos abiertos</th></tr></thead>
+        <tbody>
+          @for (zone of zones(); track zone.id) {
+            @if (zone.id !== 'unassigned') {
+              @for (table of zone.tables; track table.id) {
+                <tr><th scope="row">{{ table.label }}</th><td>{{ zone.name }}</td>
+                  <td>{{ table.orders.length ? 'Ocupada' : online() ? 'Disponible' : 'Sin verificar' }}</td>
+                  <td>{{ table.orders.length }}</td></tr>
+              }
+            }
+          }
+          @if (occupancy().available + occupancy().occupied === 0) {
+            <tr><td colspan="4">Agrega mesas desde la configuración del plano.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+} @else if (!settingsMode()) {
 @for (zone of zones(); track zone.id) {
   <section class="salon-zone" [attr.aria-label]="zone.name">
     <h2>{{ zone.name }} <span>{{ zone.tables.length }}</span></h2>
@@ -93,7 +117,8 @@
                   <button class="order-link" type="button" (click)="orderDetails.emit(order)">
                     #{{ order.number }} <span [attr.data-status]="order.status">{{ statusLabel(order) }}</span>
                   </button>
-                  @if (order.status === 'pending') {
+                  @if (order.paidAt) { <small>Cobrado</small> }
+                  @if (order.status === 'pending' && !order.paidAt) {
                     <button class="edit-link" type="button" [attr.aria-label]="'Editar pedido ' + order.number" (click)="editOrder.emit(order)">Editar</button>
                   }
                 </li>
@@ -109,4 +134,5 @@
       } @empty { <p>Este salón aún no tiene mesas.</p> }
     </div>
   </section>
+}
 }

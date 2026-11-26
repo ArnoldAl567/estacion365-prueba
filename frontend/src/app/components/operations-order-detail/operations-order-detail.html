@@ -86,7 +86,14 @@
         }}</strong>
       </div>
       <small>Medio de pago · {{ staffOrderPayment(order) }}</small>
+      @if (order.paidAt) { <small>Cobrado · {{ order.paidAt | date: 'dd/MM HH:mm' : '-0500' }}</small> }
     </div>
+    @if (order.tickets?.length) {
+      <h3>Preparación en Cocina</h3>
+      @for (ticket of order.tickets; track ticket.center) {
+        <p>{{ ticket.name }} · {{ statusLabel(ticket.status) }}</p>
+      }
+    }
     @if (order.events?.length) {
       <h3>Recorrido del pedido</h3>
       <ol class="order-timeline">
@@ -105,12 +112,18 @@
   </div>
   @if (isActiveOrderStatus(order.status)) {
     <footer>
-      <button class="ops-primary" type="button" [disabled]="busy()" (click)="advanced.emit(order)">
-        {{ busy() ? 'Actualizando…' : nextAction(order) }} <span>→</span>
-      </button>
-      <button class="detail-cancel" type="button" [disabled]="busy()" (click)="cancellationRequested.emit(order)">
-        Cancelar pedido
-      </button>
+      @if (order.status === 'ready' || canPrepare() && !order.tickets?.length) {
+        <button class="ops-primary" type="button" [disabled]="busy()" (click)="advanced.emit(order)">
+          {{ busy() ? 'Actualizando…' : nextAction(order) }} <span>→</span>
+        </button>
+      } @else {
+        <small>Actualiza las comandas en Cocina.</small>
+      }
+      @if (!order.paidAt) {
+        <button class="detail-cancel" type="button" [disabled]="busy()" (click)="cancellationRequested.emit(order)">
+          Cancelar pedido
+        </button>
+      }
     </footer>
   }
 </dialog>

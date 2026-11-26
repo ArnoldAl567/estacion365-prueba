@@ -1,0 +1,351 @@
+<section class="workflows">
+  @if (view() === 'items' || view() === 'categories' || view() === 'units') {
+    <nav class="ingredient-tabs" aria-label="Secciones de Insumos">
+      @for (tab of ingredientTabs; track tab.id) {
+        <a [href]="tabUrl(tab.id)" [class.active]="page() === tab.id" [attr.aria-current]="page() === tab.id ? 'page' : null"
+          (click)="pageRequested.emit({event: $event, id: tab.id})">{{ tab.label }}</a>
+      }
+    </nav>
+  }
+  @if (view() !== 'orders') {
+  <div class="workflow-tabs">
+    @switch (view()) {
+      @case ('items') {
+        <button class="ops-primary" type="button" [disabled]="busy()" (click)="create('items')">+ Nuevo insumo</button>
+
+      }
+      @case ('units') { <button class="ops-primary" type="button" [disabled]="busy()" (click)="create('units')">+ Nueva unidad</button> }
+      @case ('categories') { <button class="ops-primary" type="button" [disabled]="busy()" (click)="create('categories')">+ Nueva categoría</button> }
+      @case ('suppliers') { <button class="ops-primary" type="button" [disabled]="busy()" (click)="create('suppliers')">+ Nuevo proveedor</button> }
+      @case ('purchases') { <button class="ops-primary" type="button" [disabled]="busy()" (click)="create('purchases')">+ Registrar compra</button> }
+      @case ('movements') { <button class="ops-primary" type="button" [disabled]="busy()" (click)="create('movements')">+ Registrar movimiento</button> }
+      @case ('production') {
+        <button class="ops-primary" type="button" [disabled]="busy()" (click)="create('recipes')">+ Nueva receta</button>
+
+      }
+
+    }
+
+  </div>
+  }
+  @if (error()) { <p class="workflow-error" role="alert">{{ error() }} <button type="button" [disabled]="busy()" (click)="load()">Reintentar</button></p> }
+  @if (notice()) { <p class="workflow-notice" role="status">{{ notice() }}</p> }
+  @if (data(); as stock) {
+    @switch (view()) {
+      @case ('items') {
+
+        <section class="workflow-card">
+          <h2>Insumos registrados</h2>
+          <div class="workflow-table" tabindex="0" role="region" aria-label="Tabla de registros"><table>
+            <thead><tr><th>Insumo</th><th>Categoría</th><th>Stock</th><th>Valor</th><th>Acciones</th></tr></thead>
+            <tbody>
+              @for (entry of stock.items; track entry.id) {
+                <tr><th scope="row">{{ entry.name }}</th><td>{{ entry.category || 'Sin categoría' }}</td>
+                  <td>{{ entry.stock_milli / 1000 | number:'1.0-3' }} {{ entry.symbol }}
+                    @if (entry.stock_milli <= entry.minimum_milli) { <small class="workflow-low">Stock bajo</small> }
+                  </td><td>{{ money(entry.stock_value_cents) }}</td>
+                  <td><button type="button" (click)="item = {id: entry.id, name: entry.name, unit_id: entry.unit_id, category: entry.category ?? '', category_id: entry.category_id ?? null, minimum_milli: entry.minimum_milli / 1000}; openEditor('items')">Editar</button><button class="danger-action" type="button" [disabled]="busy()" (click)="removeRecord('items', entry.id, entry.name)" [attr.aria-label]="'Eliminar ' + entry.name">Eliminar</button></td>
+                </tr>
+              } @empty { <tr><td colspan="5">Agrega un insumo para comenzar.</td></tr> }
+            </tbody>
+          </table></div>
+        </section>
+
+      }
+      @case ('units') {
+        <section class="workflow-card">
+          <h2>Unidades registradas</h2>
+          <div class="workflow-table" tabindex="0" role="region" aria-label="Tabla de registros"><table>
+            <thead><tr><th>Unidad</th><th>Símbolo</th><th>Acciones</th></tr></thead>
+            <tbody>@for (entry of stock.units; track entry.id) {
+              <tr><th scope="row">{{ entry.name }}</th><td>{{ entry.symbol }}</td>
+                <td><div class="workflow-inline"><button type="button" [disabled]="busy()" (click)="unit = {id: entry.id, name: entry.name, symbol: entry.symbol}; openEditor('units')" [attr.aria-label]="'Editar unidad ' + entry.name">Editar</button>
+                  <button class="danger-action" type="button" [disabled]="busy()" (click)="deleteUnit(entry.id, entry.name)" [attr.aria-label]="'Eliminar unidad ' + entry.name">Eliminar</button>
+                </div></td></tr>
+            } @empty { <tr><td colspan="3">Aún no hay unidades.</td></tr> }</tbody>
+          </table></div>
+        </section>
+      }
+      @case ('categories') {
+        <section class="workflow-card"><h2>Categorías de insumos</h2><p>Organiza tus insumos por grupos. Estas categorías son independientes de las categorías de platos del menú.</p>
+          <div class="workflow-table" tabindex="0" role="region" aria-label="Categorías de insumos"><table>
+            <thead><tr><th>Categoría</th><th>Insumos asignados</th><th>Acciones</th></tr></thead><tbody>
+              @for (entry of stock.categories ?? []; track entry.id) {
+                <tr><th scope="row">{{ entry.name }}</th><td>{{ entry.item_count }}</td><td><div class="workflow-inline">
+                  <button type="button" [disabled]="busy()" (click)="category = {id: entry.id, name: entry.name}; openEditor('categories')">Editar</button>
+                  <button class="danger-action" type="button" [disabled]="busy()" (click)="deleteCategory(entry.id, entry.name)">Eliminar</button>
+                </div></td></tr>
+              } @empty { <tr><td colspan="3">Agrega una categoría para comenzar a clasificar tus insumos.</td></tr> }
+            </tbody></table></div>
+        </section>
+      }
+      @case ('suppliers') {
+        <div class="workflow-grid">
+
+          <section class="workflow-card">
+            <h2>Proveedores registrados</h2>
+            <div class="workflow-table" tabindex="0" role="region" aria-label="Tabla de registros"><table>
+              <thead><tr><th>Proveedor</th><th>Contacto</th><th>Acciones</th></tr></thead>
+              <tbody>
+                @for (entry of stock.suppliers; track entry.id) {
+                  <tr><th scope="row">{{ entry.name }}</th><td>{{ entry.contact || '—' }}</td>
+                    <td><button type="button" (click)="supplier = {id: entry.id, name: entry.name, contact: entry.contact ?? ''}; openEditor('suppliers')">Editar</button><button class="danger-action" type="button" [disabled]="busy()" (click)="removeRecord('suppliers', entry.id, entry.name)" [attr.aria-label]="'Eliminar ' + entry.name">Eliminar</button></td></tr>
+                } @empty { <tr><td colspan="3">Aún no hay proveedores.</td></tr> }
+              </tbody>
+            </table></div>
+          </section>
+        </div>
+      }
+      @case ('purchases') {
+
+        <section class="workflow-card"><h2>Últimas compras</h2><p class="workflow-period">Fechas de registro · Hora de Lima</p><div class="workflow-table" tabindex="0" role="region" aria-label="Tabla de registros"><table>
+          <thead><tr><th>Compra</th><th>Fecha y hora</th><th>Proveedor</th><th>Referencia</th><th>Total original</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody>
+            @for (entry of stock.purchases; track entry.id) {
+              <tr><th scope="row">#{{ entry.id }}</th><td><span class="workflow-timestamp">{{ entry.created_at | operationTimestamp }}</span></td><td>{{ entry.supplier }}</td><td>{{ entry.reference || '—' }}</td><td>{{ money(entry.total_cents) }}</td><td><span class="ui-state" [class.muted]="entry.cancelled_at">{{ entry.cancelled_at ? 'Anulada' : 'Registrada' }}</span></td><td><button type="button" (click)="openPurchaseDetail(entry.id)" [attr.aria-label]="'Ver detalle de compra #' + entry.id">Ver detalle</button>@if (!entry.cancelled_at) { <button class="danger-action" type="button" [disabled]="busy()" (click)="cancellation = {id: entry.id, reason: ''}; openEditor('cancel-purchase')" [attr.aria-label]="'Anular compra #' + entry.id">Anular compra</button> }</td></tr>
+            } @empty { <tr><td colspan="7">Aún no hay compras registradas.</td></tr> }
+          </tbody>
+        </table></div></section>
+      }
+      @case ('movements') {
+
+        <section class="workflow-card"><h2>Libro de movimientos</h2><p class="workflow-period">Fechas de registro · Hora de Lima</p><div class="workflow-table" tabindex="0" role="region" aria-label="Tabla de registros"><table>
+          <thead><tr><th>Tipo</th><th>Fecha y hora</th><th>Insumo o lote</th><th>Cantidad</th><th>Costo</th><th>Motivo</th></tr></thead>
+          <tbody>
+            @for (entry of stock.movements.data; track entry.id) {
+              <tr><th scope="row">{{ entry.type }}</th><td><span class="workflow-timestamp">{{ entry.created_at | operationTimestamp }}</span></td><td>{{ entry.name || 'Lote #' + entry.batch_id }}</td><td>{{ entry.quantity_milli / 1000 | number:'1.0-3' }}</td>
+                <td>{{ money(entry.cost_cents) }}</td><td>{{ entry.reason || '—' }}</td></tr>
+            } @empty { <tr><td colspan="6">Aún no hay movimientos en esta página.</td></tr> }
+          </tbody>
+        </table></div>
+        <ng-container [ngTemplateOutlet]="pagination" [ngTemplateOutletContext]="{page: stock.movements, key: 'page'}" />
+        </section>
+      }
+      @case ('production') {
+        <section class="workflow-card"><h2>Registro de insumos por plato y lote</h2><p>Define los insumos necesarios para un plato y cuántos platos se obtienen de un lote. Guardar esta ficha no registra producción ni modifica el stock.</p><div class="workflow-table" tabindex="0" role="region" aria-label="Tabla de registros"><table>
+          <thead><tr><th scope="col">Producto</th><th scope="col">Platos por lote</th><th scope="col">Insumos</th><th scope="col">Acciones</th></tr></thead>
+          <tbody>
+            @for (entry of stock.recipes; track entry.id) {
+              <tr><th scope="row">{{ entry.name }}</th><td>{{ entry.batch_yield ?? 1 }} platos</td>
+                <td><div class="recipe-ingredients-summary">
+                  <strong class="recipe-ingredients-count">{{ entry.components.length }} {{ entry.components.length === 1 ? 'insumo' : 'insumos' }}</strong>
+                  <div class="recipe-ingredient-tags">
+                    @for (line of entry.components.slice(0, 3); track line.item_id) {
+                      <span class="recipe-ingredient-tag" [title]="ingredientName(line.item_id)">{{ ingredientName(line.item_id) }}</span>
+                    }
+                    @if (entry.components.length > 3) { <span class="recipe-ingredients-more">+{{ entry.components.length - 3 }} más</span> }
+                  </div>
+                </div></td>
+                <td><div class="workflow-inline">
+                  <button type="button" (click)="recipeDetailId.set(entry.id)" [attr.aria-label]="'Ver detalle de receta de ' + entry.name">Ver detalle</button>
+                  <button type="button" [disabled]="busy()" (click)="editRecipe(entry.product_key)" [attr.aria-label]="'Editar receta de ' + entry.name">Editar</button><button class="danger-action" type="button" [disabled]="busy()" (click)="removeRecord('recipes', entry.id, entry.name)" [attr.aria-label]="'Eliminar ' + entry.name">Eliminar</button>
+                </div></td>
+              </tr>
+            } @empty { <tr><td colspan="4">Aún no hay recetas guardadas.</td></tr> }
+          </tbody>
+        </table></div></section>
+      }
+      @case ('orders') {
+        <section class="workflow-card">
+          <h2>Consumo por pedido</h2>
+          <p>Registra el consumo de pedidos listos o entregados: los platos al momento descuentan sus insumos y los preparados por lotes descuentan porciones ya producidas. El sistema evita repetir un consumo registrado.</p>
+          <div class="workflow-table" tabindex="0" role="region" aria-label="Tabla de registros"><table>
+            <thead><tr><th>Pedido</th><th>Mesa</th><th>Fecha</th><th>Acciones</th></tr></thead>
+            <tbody>
+              @for (entry of stock.orders.data; track entry.id) {
+                <tr><th scope="row">#{{ entry.id }}</th><td>{{ entry.table_label || '—' }}</td><td>{{ entry.created_at | date:'dd/MM HH:mm':'-0500' }}</td>
+                  <td><button type="button" [disabled]="busy()" (click)="confirmOrder = entry.id; openEditor('consume')">Registrar consumo</button><button class="danger-action" type="button" [disabled]="busy()" (click)="removeRecord('orders', entry.id, 'Pedido #' + entry.id, entry.status)" [attr.aria-label]="'Eliminar ' + 'Pedido #' + entry.id">Eliminar</button></td></tr>
+              } @empty { <tr><td colspan="4">No hay pedidos pendientes de registrar en esta página.</td></tr> }
+            </tbody>
+          </table></div>
+          <ng-container [ngTemplateOutlet]="pagination" [ngTemplateOutletContext]="{page: stock.orders, key: 'orderPage'}" />
+        </section>
+      }
+    }
+
+    @if (recipeDetail(); as detail) {
+      <app-record-dialog title="Detalle de receta" (closed)="recipeDetailId.set(null)">
+        <section class="workflow-card">
+          <dl class="record-detail-summary">
+            <div><dt>Producto</dt><dd>{{ detail.name }}</dd></div>
+            <div><dt>Platos por lote</dt><dd>{{ detail.batch_yield ?? 1 }}</dd></div>
+            <div><dt>Insumos de la receta</dt><dd>{{ detail.lines.length }}</dd></div>
+          </dl>
+          <p>Consumo definido por plato y por lote de {{ detail.batch_yield ?? 1 }} porciones. Este detalle es la ficha de la receta; consultarlo no descuenta stock.</p>
+          <div class="workflow-table" tabindex="0" role="region" aria-label="Insumos de la receta">
+            <table><thead><tr><th>Insumo</th><th>Cantidad por porción</th><th>Por lote de {{ detail.batch_yield ?? 1 }}</th><th>Unidad</th></tr></thead><tbody>
+              @for (line of detail.lines; track line.item_id) {
+                <tr><th scope="row">{{ line.name }}</th><td>{{ line.quantity_milli / 1000 | number:'1.0-3' }}</td><td>{{ line.quantity_milli * (detail.batch_yield ?? 1) / 1000 | number:'1.0-3' }}</td><td>{{ line.symbol }}</td></tr>
+              } @empty { <tr><td colspan="4">No hay insumos registrados en esta receta.</td></tr> }
+            </tbody></table>
+          </div>
+        </section>
+      </app-record-dialog>
+    }
+    @if (purchaseDetailId(); as id) {
+      <app-record-dialog [title]="'Detalle de compra #' + id" (closed)="closePurchaseDetail()">
+        <section class="workflow-card" [attr.aria-busy]="detailLoading()">
+          @if (detailLoading()) { <p role="status">Cargando detalle de la compra…</p> }
+          @if (detailError()) {
+            <p class="workflow-error" role="alert">{{ detailError() }}</p>
+            <button type="button" (click)="openPurchaseDetail(id)">Reintentar</button>
+          }
+          @if (purchaseDetail(); as detail) {
+            @if (detail.cancelled_at) {
+              <p class="workflow-error" role="status"><strong>Compra anulada</strong> · {{ detail.cancelled_at | operationTimestamp }} · {{ detail.cancelled_by_name || 'Usuario registrado' }}<br>Motivo: {{ detail.cancellation_reason }}</p>
+            }
+
+            <dl class="record-detail-summary">
+              <div><dt>Proveedor</dt><dd>{{ detail.supplier }}</dd></div>
+              <div><dt>Fecha y hora · Lima</dt><dd>{{ detail.created_at | operationTimestamp }}</dd></div>
+              <div><dt>Referencia</dt><dd>{{ detail.reference || 'Sin referencia' }}</dd></div>
+            </dl>
+            <div class="workflow-table" tabindex="0" role="region" aria-label="Insumos de la compra">
+              <table><thead><tr><th>Insumo</th><th>Cantidad</th><th>Unidad</th><th>Costo total</th></tr></thead><tbody>
+                @for (line of detail.lines; track line.id) {
+                  <tr><th scope="row">{{ line.name }}</th><td>{{ line.quantity_milli / 1000 | number:'1.0-3' }}</td><td>{{ line.symbol }}</td><td>{{ money(line.cost_cents) }}</td></tr>
+                } @empty { <tr><td colspan="4">No hay insumos registrados para esta compra.</td></tr> }
+              </tbody></table>
+            </div>
+            <div class="purchase-total"><span>Total de la compra</span><strong>{{ money(detail.total_cents) }}</strong></div>
+          }
+        </section>
+      </app-record-dialog>
+    }
+    @if (editor()) {
+      <app-record-dialog [title]="editorTitle()" [busy]="busy()" (closed)="closeEditor()">
+        @if (error()) { <p class="workflow-error" role="alert">{{ error() }}</p> }
+        <fieldset class="record-form-fields" [disabled]="busy()">
+        @switch (editor()) {
+          @case ('items') {
+<form class="workflow-card record-master-form" #itemForm="ngForm" (ngSubmit)="itemForm.valid && saveMaster('items')">
+            <label class="form-wide">Nombre <input name="name" [(ngModel)]="item.name" required maxlength="120"></label>
+            <label>Categoría <select name="category" [(ngModel)]="item.category_id"><option [ngValue]="null">Sin categoría</option>
+              @for (entry of stock.categories ?? []; track entry.id) { <option [ngValue]="entry.id">{{ entry.name }}</option> }
+            </select></label>
+            <label>Unidad <select name="unit" [(ngModel)]="item.unit_id" required>
+              <option [ngValue]="null">Selecciona</option>
+              @for (entry of stock.units; track entry.id) { <option [ngValue]="entry.id">{{ entry.name }} ({{ entry.symbol }})</option> }
+            </select></label>
+            <label>Stock mínimo <input name="minimum" type="number" min="0" step=".001" required [(ngModel)]="item.minimum_milli"></label>
+            <button class="ops-primary" [disabled]="busy() || itemForm.invalid">Guardar insumo</button>
+          </form>
+          }
+          @case ('categories') {
+            <form class="workflow-card" #categoryForm="ngForm" (ngSubmit)="categoryForm.valid && category.name.trim() && saveCategory()">
+              <label>Nombre de la categoría <input name="categoryName" [(ngModel)]="category.name" required maxlength="80" placeholder="Ej. Carnes, verduras, abarrotes"></label>
+              <button class="ops-primary" [disabled]="busy() || categoryForm.invalid || !category.name.trim()">Guardar categoría</button>
+            </form>
+          }
+          @case ('units') {
+<form class="workflow-card record-master-form" #unitForm="ngForm" (ngSubmit)="unitForm.valid && saveMaster('units')">
+            <label>Nombre <input name="name" [(ngModel)]="unit.name" required maxlength="80"></label>
+            <label>Símbolo <input name="symbol" [(ngModel)]="unit.symbol" required maxlength="16"></label>
+            <button class="ops-primary" [disabled]="busy() || unitForm.invalid">Guardar unidad</button>
+          </form>
+          }
+          @case ('suppliers') {
+<form class="workflow-card record-master-form" #supplierForm="ngForm" (ngSubmit)="supplierForm.valid && saveMaster('suppliers')">
+            <label>Nombre <input name="name" [(ngModel)]="supplier.name" required maxlength="120"></label>
+            <label>Contacto <input name="contact" [(ngModel)]="supplier.contact" maxlength="120"></label>
+            <button class="ops-primary" [disabled]="busy() || supplierForm.invalid">Guardar proveedor</button>
+          </form>
+          }
+          @case ('cancel-purchase') {
+            <form class="workflow-card" #cancelForm="ngForm" (ngSubmit)="cancelForm.valid && cancelPurchase()">
+              <p>La anulación revierte el stock y el valor original. Se bloqueará si los insumos tienen salidas posteriores, incluso si luego fueron repuestos.</p>
+              <label>Motivo de anulación <textarea name="reason" [(ngModel)]="cancellation.reason" required minlength="3" maxlength="180" rows="3" placeholder="Explica por qué se anula esta compra"></textarea></label>
+              <button class="danger-action" type="submit" [disabled]="busy() || cancelForm.invalid || cancellation.reason.trim().length < 3">Continuar con la anulación</button>
+            </form>
+          }
+          @case ('purchases') {
+<form class="workflow-card" #purchaseForm="ngForm" (ngSubmit)="purchaseForm.valid && validLines(purchase.lines, true) && savePurchase()">
+          <div class="workflow-grid">
+            <label>Proveedor <select name="supplier" [(ngModel)]="purchase.supplier_id" required>
+              <option [ngValue]="null">Selecciona</option>
+              @for (entry of stock.suppliers; track entry.id) { <option [ngValue]="entry.id">{{ entry.name }}</option> }
+            </select></label>
+            <label>Referencia <input name="reference" [(ngModel)]="purchase.reference" maxlength="100"></label>
+          </div>
+          <ng-container [ngTemplateOutlet]="stockLines" [ngTemplateOutletContext]="{lines: purchase.lines, cost: true}" />
+          <button class="ops-primary" [disabled]="busy() || purchaseForm.invalid || !validLines(purchase.lines, true)">Registrar compra y sumar stock</button>
+        </form>
+          }
+          @case ('movements') {
+<form class="workflow-card" #movementForm="ngForm" (ngSubmit)="movementForm.valid && saveMovement()">
+          <div class="workflow-grid">
+            <label>Tipo <select name="type" [(ngModel)]="movement.type">
+              <option value="entrada">Entrada</option><option value="salida">Salida</option>
+            </select></label>
+            <p>Registra las mermas en el módulo Desvíos y mermas para su revisión. Aquí puedes registrar entradas y salidas manuales.</p>
+            <label>Insumo <select name="item" [(ngModel)]="movement.item_id" required><option [ngValue]="null">Selecciona</option>
+              @for (entry of stock.items; track entry.id) { <option [ngValue]="entry.id">{{entry.name}} ({{entry.symbol}})</option> }
+            </select></label>
+            <label>Cantidad <input name="quantity" required type="number" [min]="movement.type === 'merma' && movement.useBatch ? 1 : .001"
+              [step]="movement.type === 'merma' && movement.useBatch ? 1 : .001" [(ngModel)]="movement.quantity"></label>
+            @if (movement.type === 'entrada') {
+              <label>Costo total (S/) <input name="cost" type="number" min="0" step=".01" required [(ngModel)]="movement.cost"></label>
+            }
+            <label>Motivo <input name="reason" required [(ngModel)]="movement.reason" maxlength="180"></label>
+          </div>
+          <button class="ops-primary" [disabled]="busy() || movementForm.invalid">Guardar movimiento</button>
+        </form>
+          }
+          @case ('recipes') {
+<form class="workflow-card" #recipeForm="ngForm" (ngSubmit)="recipeForm.valid && validLines(recipe.lines) && saveRecipe()">
+            <label>Plato o entrada <select #recipeProduct name="product" [(ngModel)]="recipe.product_key" required
+              (ngModelChange)="selectRecipe($event)">
+              <option value="">Selecciona</option>
+              @for (entry of stock.products; track entry.item_key) { <option [value]="entry.item_key">{{ entry.name }} · {{ kindLabels[entry.kind] || entry.kind }}</option> }
+            </select></label>
+            <h3>1. Insumos para un plato</h3><p>Ingresa la cantidad de cada insumo que lleva un solo plato.</p>
+            <ng-container [ngTemplateOutlet]="stockLines" [ngTemplateOutletContext]="{lines: recipe.lines, cost: false}" />
+            <h3>2. Platos que rinde un lote</h3>
+            <label>Cantidad de platos por lote <input name="yield" type="number" min="1" max="10000" step="1" required [(ngModel)]="recipe.batch_yield"></label>
+            <p>Las cantidades del lote se calculan multiplicando los insumos de un plato por este rendimiento. Este dato no representa una producción realizada.</p>
+            <button class="ops-primary" [disabled]="busy() || recipeForm.invalid || !validLines(recipe.lines)">Guardar receta</button>
+          </form>
+          }
+          @case ('consume') {
+            <form class="workflow-card" (ngSubmit)="confirmOrder !== null && consume(confirmOrder)">
+              <p>Se descontarán los insumos o las porciones de los lotes según las recetas del pedido #{{ confirmOrder }}.</p>
+              <button class="ops-primary" type="submit" [disabled]="busy()">Confirmar descuento</button>
+            </form>
+          }
+        }
+        </fieldset>
+      </app-record-dialog>
+    }
+    <ng-template #stockLines let-lines="lines" let-cost="cost">
+      @let duplicates = duplicateItems(lines);
+      @for (line of lines; track line; let index = $index) {
+        @let duplicate = line.item_id !== null && duplicates.has(line.item_id);
+        <div class="workflow-line" [class.invalid-line]="duplicate">
+          <label>Insumo <select [name]="'line-item-' + index" [(ngModel)]="line.item_id" required
+            [attr.aria-invalid]="duplicate ? 'true' : null"
+            [attr.aria-describedby]="duplicate ? 'stock-duplicate-' + line.item_id : null">
+            <option [ngValue]="null">Selecciona</option>
+            @for (entry of stock.items; track entry.id) { <option [ngValue]="entry.id">{{ entry.name }} ({{ entry.symbol }})</option> }
+          </select></label>
+          <label>Cantidad <input [name]="'line-quantity-' + index" type="number" min=".001" step=".001" [(ngModel)]="line.quantity" required></label>
+          @if (cost) { <label>Costo total (S/) <input [name]="'line-cost-' + index" type="number" min=".01" step=".01" [(ngModel)]="line.cost" required></label> }
+          <button type="button" [disabled]="lines.length === 1 || busy()" (click)="removeStockLine(lines, line)">Quitar</button>
+        </div>
+      }
+      @for (duplicate of duplicates; track duplicate[0]) {
+        <p class="workflow-error" role="alert" [id]="'stock-duplicate-' + duplicate[0]">
+          El insumo «{{ duplicate[1] }}» está repetido.
+          {{ cost ? 'Agrupa las cantidades y el costo total en una sola fila, o selecciona otro insumo.' : 'Agrupa las cantidades en una sola fila, o selecciona otro insumo.' }}
+        </p>
+      }
+      <button type="button" [disabled]="busy()" (click)="lines.push(emptyLine())">Agregar insumo</button>
+    </ng-template>
+  } @else if (busy()) { <p role="status">Cargando inventario…</p> }
+  <ng-template #pagination let-page="page" let-key="key">
+    <div class="workflow-pagination">
+      <button type="button" [disabled]="busy() || page.current_page === 1" (click)="changePage(key, -1)">Anterior</button>
+      <span>Página {{ page.current_page }}</span>
+      <button type="button" [disabled]="busy() || !page.next_page_url" (click)="changePage(key, 1)">Siguiente</button>
+    </div>
+  </ng-template>
+</section>

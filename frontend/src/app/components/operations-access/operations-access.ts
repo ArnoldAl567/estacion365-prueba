@@ -1,6 +1,8 @@
-import { Component, input, output } from '@angular/core';
+import { Component, input, output, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { CLOUD_STAGING } from '../../config/local-operations.config';
+import { RecordDialog } from '../record-dialog/record-dialog';
 
 export interface OperationsCredentials {
   name: string;
@@ -12,7 +14,7 @@ export interface OperationsCredentials {
 
 @Component({
   selector: 'app-operations-access',
-  imports: [FormsModule],
+  imports: [FormsModule, NgTemplateOutlet, RecordDialog],
   templateUrl: './operations-access.html',
   styleUrl: './operations-access.scss',
 })
@@ -22,6 +24,7 @@ export class OperationsAccess {
   readonly error = input('');
   readonly credentialsSubmitted = output<OperationsCredentials>();
   readonly retry = output<void>();
+  readonly setupOpen = signal(false);
   readonly cloudStaging = CLOUD_STAGING;
   login: OperationsCredentials = { name: '', username: '', password: '', confirmation: '' };
   showPassword = false;

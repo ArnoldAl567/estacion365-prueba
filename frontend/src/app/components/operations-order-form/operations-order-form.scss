@@ -156,17 +156,6 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .total-amount { display: flex; align-items: baseline; gap: .65rem; font-weight: 700; }
 .total-amount strong { color: #206443; font-size: 1.35rem; font-variant-numeric: tabular-nums; }
 .form-error { padding: .65rem; margin-bottom: .75rem; background: #fff2ef; border-radius: .45rem; }
-.modifier-settings {
-  margin-bottom: 1.4rem;
-  padding: .7rem 1rem;
-  border: 1px solid var(--editor-line);
-  border-radius: .65rem;
-  background: #ebf3ed;
-}
-.modifier-settings summary { cursor: pointer; color: #245442; font-size: .85rem; font-weight: 700; }
-.modifier-settings .fields { margin: .75rem 0; }
-.modifier-settings ul { display: flex; flex-wrap: wrap; list-style: none; gap: .5rem; padding: 0; }
-.modifier-settings li { display: inline-flex; align-items: center; gap: .4rem; }
 .discard-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
 .discard { background: #982b22; color: #fff; border-color: #982b22; }
 .discard-prompt p { margin-top: .25rem; }
@@ -193,7 +182,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 
 @media (max-width: 460px) {
   .fields, .line-fields { column-gap: .75rem; }
-  .picker-filters, .picker-selection, .modifier-settings .fields { grid-template-columns: minmax(0, 1fr); }
+  .picker-filters, .picker-selection { grid-template-columns: minmax(0, 1fr); }
   .daily-picker .add-product { justify-self: stretch; }
   .line-fields { grid-template-columns: minmax(0, 1fr); }
   .line-fields > :first-child { width: min(100%, 7rem); }

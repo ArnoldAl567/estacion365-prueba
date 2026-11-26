@@ -1,0 +1,154 @@
+@if (view() === 'payments') {
+  <app-cash-payment-history />
+} @else {
+<div class="workflows" [attr.aria-busy]="busy()">
+  @if (error()) { <p class="workflow-error" role="alert">{{ error() }} <button type="button" [disabled]="busy()" (click)="run()">Reintentar</button></p> }
+  @if (notice()) { <p class="workflow-notice" role="status">{{ notice() }}</p> }
+  @if (data(); as cash) {
+    @if (view() === 'shift') {
+      @if (cash.shift; as shift) {
+        <section class="workflow-card">
+          <h2>{{ shift.name }}</h2><p>Este turno está abierto. Al finalizarlo podrás abrir el siguiente turno configurado; los cobros se guardan por separado en cada apertura.</p>
+          <p class="workflow-period">Apertura · {{ shift.opened_at | operationTimestamp }} · Hora de Lima</p>
+          <dl class="workflow-metrics">
+            <div><dt>Fondo inicial</dt><dd>{{ money(shift.opening_cents) }}</dd></div>
+            <div><dt>Cobros totales</dt><dd>{{ money(shift.income_cents ?? 0) }}</dd></div>
+            @if ((shift.expenses_cents ?? 0) > 0) { <div><dt>Salidas anteriores registradas</dt><dd>{{ money(shift.expenses_cents ?? 0) }}</dd></div> }
+            <div><dt>Efectivo esperado</dt><dd>{{ money(shift.expected_cents) }}</dd></div>
+          </dl>
+        </section>
+        <div class="workflow-columns">
+          <section class="workflow-card">
+            <h2>Arqueo y cierre</h2>
+            <button class="ops-primary" type="button" [disabled]="busy()" (click)="openEditor('close')">Revisar y cerrar turno</button>
+          </section>
+        </div>
+      } @else {
+        <section class="workflow-card">
+          <h2>Abrir turno</h2>
+          <button class="ops-primary" type="button" [disabled]="busy()" (click)="openEditor('open')">Abrir turno</button>
+        </section>
+      }
+    } @else if (view() === 'templates') {
+      <section class="workflow-card">
+        <div class="workflow-section-heading"><h2>Turnos configurados</h2><button class="ops-primary" type="button" [disabled]="busy()" (click)="definition = {id: undefined, name: '', active: true}; openEditor('template')">+ Nuevo turno</button></div>
+        <p>Deja preparados los turnos Mañana, Tarde y Noche. Configurarlos no abre la caja ni registra dinero. Para usarlos sucesivamente, cierra el turno actual y selecciona el siguiente al abrir caja.</p>
+        <div class="workflow-table" tabindex="0" role="region" aria-label="Turnos configurados"><table><thead><tr><th>Turno</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+          @for(entry of cash.templates ?? []; track entry.id){<tr><th scope="row">{{entry.name}}</th><td><span class="ui-state" [class.muted]="!entry.active">{{entry.active?'Activo':'Inactivo'}}</span></td><td><div class="workflow-inline">
+            <button type="button" [disabled]="busy()" (click)="definition = {id: entry.id, name: entry.name, active: entry.active}; openEditor('template')">Editar</button>
+            <button class="danger-action" type="button" [disabled]="busy()" (click)="deleteTemplate(entry.id, entry.name)">Eliminar</button>
+          </div></td></tr>}@empty{<tr><td colspan="3">Configura un turno para poder abrir caja.</td></tr>}
+        </tbody></table></div>
+      </section>
+    } @else if (view() === 'orders') {
+      <section class="workflow-card">
+        <h2>Pedidos por cobrar y mesas abiertas</h2>
+        @if (!cash.shift) { <p>Abre un turno para registrar cobros.</p> }
+        <div class="workflow-table" tabindex="0" role="region" aria-label="Tabla de registros"><table>
+          <thead><tr><th>Pedido</th><th>Servicio</th><th>Preparación</th><th>Total</th><th>Cobro</th><th>Mesa</th></tr></thead>
+          <tbody>
+            @for (order of cash.orders; track order.id) {
+              <tr>
+                <td><strong>#{{ order.number }}</strong></td>
+                <td>{{ staffOrderMethod(order) }}</td><td>{{ statusLabel(order.status) }}</td><td>{{ money(order.totalCents) }}</td>
+                <td>
+                  @if (order.paymentRecord; as paid) { <span class="workflow-badge">Cobrado · {{ paid.method_name }}</span> }
+                  @else {
+                    <button type="button" [disabled]="!cash.shift || busy()" (click)="openEditor('payment', order)">Cobrar</button>
+                  }
+                </td>
+                <td>
+                  @if (order.method === 'table' && order.status === 'delivered' && order.paymentRecord && !order.tableClosedAt) {
+                    <button class="workflow-secondary" type="button" [disabled]="busy()"
+                      (click)="openEditor('table', order)">Cerrar mesa</button>
+                  } @else { — }
+                </td>
+              </tr>
+            } @empty { <tr><td colspan="6">No hay pedidos pendientes de cobro ni mesas abiertas.</td></tr> }
+          </tbody>
+        </table></div>
+        <div class="workflow-inline">
+          <button class="workflow-secondary" [disabled]="cash.ordersPage <= 1 || busy()" (click)="run(undefined, undefined, undefined, cash.ordersPage - 1)">Anterior</button>
+          <button class="workflow-secondary" [disabled]="!cash.hasMoreOrders || busy()" (click)="run(undefined, undefined, undefined, cash.ordersPage + 1)">Siguiente</button>
+        </div>
+      </section>
+    } @else {
+      <section class="workflow-card">
+        <h2>Últimos turnos cerrados</h2>
+        <p class="workflow-period">Hora de Lima</p>
+        <div class="workflow-table" tabindex="0" role="region" aria-label="Tabla de registros"><table>
+          <thead><tr><th>Turno</th><th>Apertura</th><th>Cierre</th><th>Fondo inicial</th><th>Esperado</th><th>Contado</th><th>Diferencia</th></tr></thead>
+          <tbody>
+          @for (shift of cash.history; track shift.id) {
+            <tr><td>{{ shift.name }}</td><td><span class="workflow-timestamp">{{ shift.opened_at | operationTimestamp }}</span></td><td><span class="workflow-timestamp">{{ shift.closed_at | operationTimestamp }}</span></td>
+              <td>{{ money(shift.opening_cents) }}</td><td>{{ money(shift.expected_cents) }}</td>
+              <td>{{ money(shift.counted_cents ?? 0) }}</td><td>{{ money((shift.counted_cents ?? 0) - shift.expected_cents) }}</td></tr>
+          } @empty { <tr><td colspan="7">Aún no hay turnos cerrados.</td></tr> }
+          </tbody>
+        </table></div>
+      </section>
+    }
+
+    @if (editor()) {
+      <app-record-dialog [title]="editorTitle()" [busy]="busy()" (closed)="editor.set(null)">
+        @if (error()) { <p class="workflow-error" role="alert">{{ error() }}</p> }
+        <fieldset class="record-form-fields" [disabled]="busy()">
+        <section class="workflow-card">
+        @switch (editor()) {
+          @case ('close') {
+            @if (cash.shift; as shift) {
+<form #closing="ngForm" class="workflow-form" (ngSubmit)="closing.valid && (confirmingClose ? closeShift(shift.id) : confirmingClose = true)">
+              <label>Efectivo contado (S/)<input name="counted" type="number" [(ngModel)]="counted" (ngModelChange)="confirmingClose = false" required min="0" step=".01" /></label>
+              @if (counted !== null) { <p>Diferencia <strong>{{ money(cents(counted) - shift.expected_cents) }}</strong></p> }
+              @if (confirmingClose) {
+                <p>Confirma el cierre con {{ money(cents(counted)) }} en efectivo contado.</p>
+                <button type="button" class="workflow-secondary" (click)="confirmingClose = false">Volver</button>
+              }
+              <button type="submit" [disabled]="closing.invalid || busy()">{{ confirmingClose ? 'Confirmar cierre' : 'Revisar cierre' }}</button>
+            </form>
+            }
+          }
+          @case ('template') {
+            <form class="workflow-form" #templateForm="ngForm" (ngSubmit)="templateForm.valid && definition.name.trim() && saveTemplate()">
+              <label>Nombre del turno <input name="name" [(ngModel)]="definition.name" required maxlength="80" placeholder="Ej. Turno Tarde"></label>
+              <label><input type="checkbox" name="active" [(ngModel)]="definition.active"> Disponible para nuevas aperturas</label>
+              <p>Editar el nombre no cambia los nombres guardados en aperturas anteriores. Desactivar un turno no cierra una caja que ya esté abierta.</p>
+              <button class="ops-primary" [disabled]="busy()||templateForm.invalid||!definition.name.trim()">Guardar turno</button>
+            </form>
+          }
+          @case ('open') {
+<form #openingForm="ngForm" class="workflow-form" (ngSubmit)="openingForm.valid && openShift()">
+            <label>Turno configurado <select name="shift" [(ngModel)]="templateId" required><option [ngValue]="null">Selecciona un turno</option>
+              @for(entry of cash.templates ?? []; track entry.id){ @if(entry.active){<option [ngValue]="entry.id">{{entry.name}}</option>} }
+            </select></label><p>Solo se puede abrir un turno a la vez. El fondo inicial corresponde al efectivo contado al comenzar este turno.</p>
+            <label>Fondo inicial (S/)<input name="opening" type="number" [(ngModel)]="opening" required min="0" step=".01" /></label>
+            <button type="submit" [disabled]="openingForm.invalid || busy()">Abrir caja</button>
+          </form>
+          }
+          @case ('payment') {
+            @if (selectedOrder(); as order) {
+              <p>{{ staffOrderMethod(order) }} · Total <strong>{{ money(order.totalCents) }}</strong></p>
+              <form #paymentForm="ngForm" class="workflow-form" (ngSubmit)="paymentForm.valid && run('/cash/orders/' + order.id + '/payment', {method: methods[order.id], expected_total_cents: order.totalCents}, 'Pedido cobrado.')">
+                <label>Medio de pago <select name="method" required [(ngModel)]="methods[order.id]">
+                  <option [ngValue]="undefined">Selecciona un medio</option>
+                  @for (method of cash.methods; track method.code) { <option [value]="method.code">{{ method.name }}</option> }
+                </select></label>
+                <button class="ops-primary" type="submit" [disabled]="paymentForm.invalid || !cash.shift || busy()">Confirmar cobro</button>
+              </form>
+            }
+          }
+          @case ('table') {
+            @if (selectedOrder(); as order) {
+              <p>Se cerrará {{ staffOrderMethod(order) }} cuando todos sus pedidos estén entregados y cobrados.</p>
+              <button class="ops-primary" type="button" [disabled]="busy()" (click)="run('/cash/orders/' + order.id + '/close-table', {}, 'Mesa cerrada.')">Confirmar cierre de mesa</button>
+            }
+          }
+        }
+        </section>
+        </fieldset>
+      </app-record-dialog>
+    }
+  } @else if (!error()) { <p role="status">Cargando Caja…</p> }
+</div>
+
+}

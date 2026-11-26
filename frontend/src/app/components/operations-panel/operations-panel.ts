@@ -16,8 +16,10 @@ import { FormsModule } from '@angular/forms';
 import { LocalOperationsApi, OperationsError } from '../../services/local-operations-api.service';
 import {
   ORDER_STATUSES,
+  STAFF_ROLES,
   isActiveOrderStatus,
   OrderStatus,
+  ProductionTicket,
   StaffOrder,
   StaffRole,
   StaffUser,
@@ -30,24 +32,27 @@ import { CatalogApiService } from '../../services/catalog-api.service';
 import { LocalCatalogAdapter } from '../../services/local-catalog-adapter.service';
 import { OperationsKitchen } from '../operations-kitchen/operations-kitchen';
 import { OperationsOrderDetail } from '../operations-order-detail/operations-order-detail';
-import { OperationsReports } from '../operations-reports/operations-reports';
 import { OperationsOrderForm } from '../operations-order-form/operations-order-form';
 import { OperationsTheme } from './operations-theme';
 import { OperationsSalon } from '../operations-salon/operations-salon';
+import { OperationsCash } from '../operations-cash/operations-cash';
+import { OperationsInventory } from '../operations-inventory/operations-inventory';
+import { InventoryIncidents } from '../inventory-incidents/inventory-incidents';
+import { OperationsSettingsPanel } from '../operations-settings/operations-settings';
+import { OperationsWorkflowReports } from '../operations-reports/operations-workflow-reports';
+import { OperationsSalesReports } from '../operations-reports/operations-sales-reports';
+import { OperationsMenuSettings } from '../operations-menu-settings/operations-menu-settings';
+import { RecordDialog } from '../record-dialog/record-dialog';
+import { RemovalConfirmationDialog } from '../removal-confirmation/removal-confirmation';
+import { RemovalConfirmation } from '../../services/removal-confirmation.service';
+import {
+  OPERATIONS_NAV, OPERATIONS_PAGES, OperationsPageId, OperationsView,
+  operationsPageUrl, resolveOperationsPage,
+} from '../../config/operations-navigation';
 
 registerLocaleData(localeEsPe);
 
-type OperationsView = 'salon' | 'orders' | 'kitchen' | 'history' | 'users' | 'catalog' | 'reports';
 const SOUND_PREFERENCE_KEY = 'estacion-ops-sound';
-const VIEW_FRAGMENTS: Record<OperationsView, string> = {
-  salon: '#salon',
-  orders: '#pedidos',
-  kitchen: '#cocina',
-  history: '#historial',
-  users: '#equipo',
-  catalog: '#carta',
-  reports: '#reportes',
-};
 
 interface StaffForm {
   id?: number;
@@ -68,21 +73,34 @@ interface StaffForm {
     AdminPanel,
     OperationsKitchen,
     OperationsOrderDetail,
-    OperationsReports,
     OperationsOrderForm,
     OperationsTheme,
     OperationsSalon,
+    OperationsCash,
+    OperationsInventory,
+    InventoryIncidents,
+    OperationsSettingsPanel,
+    OperationsWorkflowReports,
+    OperationsSalesReports,
+    OperationsMenuSettings,
+    RecordDialog,
+    RemovalConfirmationDialog,
   ],
   providers: [{ provide: CatalogApiService, useClass: LocalCatalogAdapter }],
   templateUrl: './operations-panel.html',
   styleUrls: ['./operations-panel.scss', './operations-team.scss', './operations-navigation.scss'],
 })
 export class OperationsPanel implements OnInit, OnDestroy {
+  readonly removalConfirmation = inject(RemovalConfirmation);
   readonly api = inject(LocalOperationsApi);
   private readonly zone = inject(NgZone);
   readonly loading = signal(true);
   readonly busy = signal(false);
-  readonly view = signal<OperationsView>('salon');
+  readonly page = signal<OperationsPageId>('salon');
+  readonly activePage = computed(() => OPERATIONS_PAGES.find((entry) => entry.id === this.page())!);
+  readonly view = computed(() => this.activePage().view);
+  readonly activeGroup = computed(() => OPERATIONS_NAV.find((group) => group.pages.some((page) => page.id === this.page()))?.label ?? '');
+  readonly viewUrl = operationsPageUrl;
   readonly orders = signal<StaffOrder[]>([]);
   readonly summary = signal({ todayCount: 0, todayTotalCents: 0 });
   readonly online = signal(false);
@@ -95,12 +113,13 @@ export class OperationsPanel implements OnInit, OnDestroy {
   readonly editor = signal<StaffOrder | 'new' | null>(null);
   readonly editorTable = signal<string | null>(null);
   readonly editorTableId = signal<string | null>(null);
-  readonly includeSalon = signal(false);
+  readonly methodFilter = signal<'all' | StaffOrder['method']>('all');
   readonly staffOrderMethod = staffOrderMethod;
   readonly staffOrderPayment = staffOrderPayment;
   readonly changing = signal(new Set<number>());
   readonly cancellation = signal<StaffOrder | null>(null);
   readonly cancellationError = signal('');
+  readonly cancellationReviewed = signal(false);
   private readonly cancellationDialog = viewChild<ElementRef<HTMLDialogElement>>('cancellationDialog');
   private readonly navigationDialog = viewChild<ElementRef<HTMLDialogElement>>('navigationDialog');
   cancellationReason = '';
@@ -115,81 +134,59 @@ export class OperationsPanel implements OnInit, OnDestroy {
   readonly statuses = ORDER_STATUSES;
   readonly lanes = ORDER_STATUSES.slice(0, 3);
   readonly isAdmin = computed(() => this.api.user()?.role === 'admin');
-  readonly listedOrders = computed(() =>
-    this.includeSalon() ? this.orders() : this.orders().filter((order) => order.method !== 'table'),
-  );
-  readonly counts = computed(
-    () =>
-      Object.fromEntries(
-        this.statuses.map((status) => [
-          status.id,
-          (this.view() === 'orders' ? this.listedOrders() : this.orders())
-            .filter((order) => order.status === status.id).length,
-        ]),
-      ) as Record<OrderStatus, number>,
-  );
-  readonly outsidePending = computed(() =>
-    this.orders().filter((order) => order.method !== 'table' && order.status === 'pending').length,
-  );
+  readonly canTakeOrders = computed(() => this.isAdmin() || this.api.user()?.role === 'waiter');
+  readonly canViewOrders = computed(() => this.canOpenView('kitchen'));
+  readonly canPrepare = computed(() => this.isAdmin() || this.api.user()?.role === 'kitchen');
+  readonly roleLabels = STAFF_ROLES;
+  readonly roles = Object.entries(STAFF_ROLES);
+  readonly currentRole = computed(() => {
+    const role = this.api.user()?.role;
+    return role ? STAFF_ROLES[role] : '';
+  });
+  readonly roleAccess = [
+    ['Mesero', 'Toma pedidos por mesa, consulta la carta digital de los clientes, edita pedidos, consulta el historial y registra entregas o cancelaciones.'],
+    ['Cocina', 'Actualiza comandas, registra entregas y consulta los pedidos.'],
+    ['Caja', 'Administra turnos, cobra pedidos y cierra mesas.'],
+    ['Inventario', 'Gestiona insumos, compras, recetas, producción y consumo.'],
+    ['Administrador', 'Tiene acceso a todos los módulos, incluidos reportes y configuración.'],
+  ];
+  readonly counts = computed(() => Object.fromEntries(this.statuses.map(status =>
+    [status.id, this.orders().filter(order => order.status === status.id).length])) as Record<OrderStatus, number>);
   readonly filteredOrders = computed(() => {
     const search = this.search().trim().toLocaleLowerCase('es-PE');
-    return this.listedOrders().filter(
+    return this.orders().filter(
       (order) =>
         (this.statusFilter() === 'all' || order.status === this.statusFilter()) &&
+        (this.methodFilter() === 'all' || order.method === this.methodFilter()) &&
         (!search ||
           `${order.number} ${order.customerName} ${order.customerPhone} ${staffOrderMethod(order)}`
             .toLocaleLowerCase('es-PE')
             .includes(search)),
     );
   });
-  readonly pageTitle = computed(
-    () =>
-      ({
-        salon: 'Salón',
-        orders: 'Para llevar / Delivery',
-        kitchen: 'Cocina en vivo',
-        history: 'Historial de pedidos',
-        users: 'Equipo y accesos',
-        catalog: 'Carta digital',
-        reports: 'Reportes',
-      })[this.view()],
-  );
-  readonly navigation = [
-    { id: 'salon' as const, label: 'Salón', icon: 'M3 3h18v18H3zM3 9h18M3 15h18M9 3v18M15 3v18' },
-    { id: 'orders' as const, label: 'Para llevar / Delivery', icon: 'M8 3h8l4 4v14H4V3h4m0 5h8M8 12h8M8 16h5' },
-    { id: 'history' as const, label: 'Historial', icon: 'M3 11a9 9 0 1 1 2 7M3 4v7h7M12 7v5l3 2' },
-    {
-      id: 'kitchen' as const,
-      label: 'Cocina',
-      icon: 'M4 16h16M5 16a7 7 0 0 1 14 0M12 5V3M9 3h6M3 20h18',
-    },
-    {
-      id: 'catalog' as const,
-      label: 'Carta digital',
-      icon: 'M3 4h7l2 2 2-2h7v16h-7l-2 2-2-2H3V4m9 2v16M6 8h3M6 12h3M15 8h3M15 12h3',
-    },
-    {
-      id: 'reports' as const,
-      label: 'Reportes',
-      icon: 'M4 4v16h16M8 15v2M12 11v6M16 7v10',
-    },
-    {
-      id: 'users' as const,
-      label: 'Equipo',
-      icon: 'M15 21v-2a5 5 0 0 0-10 0v2M10 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M17 4a4 4 0 0 1 0 7M21 21v-2a5 5 0 0 0-4-4',
-    },
-  ];
-  readonly navGroups: { label: string; views: OperationsView[] }[] = [
-    { label: '', views: ['salon'] },
-    { label: 'Órdenes', views: ['orders', 'history', 'kitchen'] },
-    { label: 'Menú', views: ['catalog'] },
-    { label: 'Administración', views: ['reports', 'users'] },
-  ];
-  readonly collapsedGroups = signal<string[]>([]);
-  readonly visibleNav = computed(() => this.navGroups.map((group) => ({
-    label: group.label,
-    entries: this.navigation.filter((entry) => group.views.includes(entry.id) && this.canOpenView(entry.id)),
+  readonly pageTitle = computed(() => ['inventory-categories', 'inventory-units'].includes(this.page()) ? 'Insumos' : this.activePage().label);
+  readonly pageDescription = computed(() => ({
+    salon: this.page() === 'settings-tables'
+      ? 'Consulta el plano y edita los salones y mesas del restaurante.'
+      : 'Consulta las mesas y toma pedidos por zona.',
+    kitchen: 'Consulta y actualiza la preparación de todos los pedidos.',
+    history: 'Consulta los pedidos entregados y cancelados.',
+    users: 'Administra las cuentas y los permisos del equipo.',
+    catalog: 'Actualiza los platos, precios, fotos y disponibilidad de la carta.',
+    categories: 'Edita los nombres de las categorías y los destinos de sus comandas.',
+    modifiers: 'Guarda indicaciones de preparación para usarlas al tomar pedidos.',
+    reports: '',
+    analytics: '',
+    cash: '',
+    inventory: '',
+    settings: '',
+  })[this.view()]);
+  readonly expandedGroups = signal<string[]>([]);
+  readonly visibleNav = computed(() => OPERATIONS_NAV.map((group) => ({
+    ...group,
+    entries: group.pages.filter((entry) => this.canOpenPage(entry.id) && entry.id !== 'inventory-categories' && entry.id !== 'inventory-units'),
   })).filter((group) => group.entries.length));
+  private displayedPage?: OperationsPageId;
   historyDate = '';
   historySearch = '';
   private pollTimer?: number;
@@ -230,6 +227,7 @@ export class OperationsPanel implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.removalConfirmation.finish(false);
     window.clearInterval(this.pollTimer);
     window.clearInterval(this.clockTimer);
     window.clearTimeout(this.noticeTimer);
@@ -279,6 +277,7 @@ export class OperationsPanel implements OnInit, OnDestroy {
     this.busy.set(true);
     try {
       await this.api.logout();
+      this.displayedPage = undefined;
       this.orders.set([]);
       this.selected.set(null);
       this.editor.set(null);
@@ -302,7 +301,7 @@ export class OperationsPanel implements OnInit, OnDestroy {
   }
 
   async refresh(): Promise<void> {
-    if (this.refreshing || !this.api.user()) return;
+    if (this.refreshing || !this.api.user() || !this.canViewOrders()) return;
     this.refreshing = true;
     const userId = this.api.user()!.id;
     const revision = this.feedRevision;
@@ -332,7 +331,12 @@ export class OperationsPanel implements OnInit, OnDestroy {
         if (
           !current ||
           current.status !== selected.status ||
-          current.updatedAt !== selected.updatedAt
+          current.updatedAt !== selected.updatedAt ||
+          current.paidAt !== selected.paidAt ||
+          current.revision !== selected.revision ||
+          current.tickets?.some((ticket) => !selected.tickets?.some(
+            (known) => known.center === ticket.center && known.status === ticket.status,
+          ))
         )
           void this.openDetails(current ?? selected);
       }
@@ -344,80 +348,99 @@ export class OperationsPanel implements OnInit, OnDestroy {
     }
   }
 
-  viewUrl(view: OperationsView): string {
-    return `/administrar${VIEW_FRAGMENTS[view]}`;
-  }
-
   openNavigation(): void {
-    this.navigationDialog()?.nativeElement.showModal();
+    const dialog = this.navigationDialog()?.nativeElement;
+    if (!dialog) return;
+    const group = this.activeGroup();
+    this.expandedGroups.update((groups) => groups.includes(group) ? groups : [...groups, group]);
+    dialog.showModal();
+    requestAnimationFrame(() => {
+      dialog.querySelector('[aria-current="page"]')?.scrollIntoView({ block: 'nearest' });
+    });
   }
 
   closeNavigation(): void {
     this.navigationDialog()?.nativeElement.close();
   }
 
+  @HostListener('window:popstate')
   @HostListener('window:hashchange')
   async syncViewFromUrl(): Promise<void> {
     if (!this.api.user()) return;
     const { pathname, hash } = window.location;
-    const requested =
-      pathname.replace(/\/$/, '') === '/panel-administrativo'
-        ? 'catalog'
-        : this.navigation.find((entry) => VIEW_FRAGMENTS[entry.id] === hash)?.id;
-    const fallback = this.isAdmin() ? 'salon' : 'kitchen';
-    const view = requested && this.canOpenView(requested) ? requested : fallback;
-    const url = this.viewUrl(view);
-    if (`${pathname}${hash}` !== url) window.history.replaceState(null, '', url);
-    await this.showView(view);
+    const requested = resolveOperationsPage(pathname, hash)?.id;
+    const role = this.api.user()?.role;
+    const fallback = this.canTakeOrders() ? 'salon' : role === 'cashier' ? 'cash' : role === 'stock' ? 'inventory' : 'kitchen';
+    const page = requested && this.canOpenPage(requested) ? requested : fallback;
+    const url = this.viewUrl(page);
+    if (pathname + hash !== url) window.history.replaceState(null, '', url);
+    await this.showPage(page);
   }
 
-  async selectView(view: OperationsView): Promise<void> {
-    if (!this.api.user() || !this.canOpenView(view)) return;
-    const url = this.viewUrl(view);
-    if (`${window.location.pathname}${window.location.hash}` !== url) {
-      window.history.pushState(null, '', url);
-    }
-    await this.showView(view);
+  navigate(event: MouseEvent, page: OperationsPageId): void {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    this.closeNavigation();
+    void this.selectView(page);
+  }
+
+  isNavPageActive(id: OperationsPageId): boolean {
+    return this.page() === id || id === 'inventory' && ['inventory-categories', 'inventory-units'].includes(this.page());
+  }
+
+  async selectView(page: OperationsPageId): Promise<void> {
+    if (!this.api.user() || !this.canOpenPage(page)) return;
+    const url = this.viewUrl(page);
+    if (window.location.pathname + window.location.hash !== url) window.history.pushState(null, '', url);
+    await this.showPage(page);
+  }
+
+  private canOpenPage(page: OperationsPageId): boolean {
+    if (page === 'cash-templates') return this.isAdmin();
+    if (page === 'settings-tables') return this.isAdmin();
+    return this.canOpenView(OPERATIONS_PAGES.find((entry) => entry.id === page)!.view);
   }
 
   canOpenView(view: OperationsView): boolean {
-    return this.isAdmin() || view === 'orders' || view === 'history' || view === 'kitchen';
+    if (this.isAdmin()) return true;
+    const role = this.api.user()?.role;
+    if (role === 'waiter') return view === 'salon' || view === 'kitchen' || view === 'history';
+    if (role === 'kitchen') return view === 'history' || view === 'kitchen';
+    return role === 'cashier' && view === 'cash' || role === 'stock' && view === 'inventory';
   }
 
-  private async showView(view: OperationsView): Promise<void> {
-    if (view !== this.view()) this.editor.set(null);
-    this.view.set(view);
+  private async showPage(page: OperationsPageId): Promise<void> {
+    if (this.displayedPage === page) return;
+    this.displayedPage = page;
+    this.removalConfirmation.finish(false);
+    this.editor.set(null);
+    this.page.set(page);
+    const group = this.activeGroup();
+    this.expandedGroups.update((groups) => groups.includes(group) ? groups : [...groups, group]);
     requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'instant' }));
     this.error.set('');
     this.selected.set(null);
     this.cancellationDialog()?.nativeElement.close();
-    if (view === 'history') await this.loadHistory();
-    if (view === 'users') await this.loadUsers();
+    if (page === 'history') await this.loadHistory();
+    if (page === 'users') await this.loadUsers();
   }
 
   selectStatus(status: 'all' | OrderStatus): void {
     this.statusFilter.set(status);
-    if (this.view() !== 'orders') {
-      this.includeSalon.set(true);
-      void this.selectView('orders');
-    }
+
   }
 
   toggleNavGroup(label: string): void {
-    this.collapsedGroups.update((groups) => groups.includes(label)
+    this.expandedGroups.update((groups) => groups.includes(label)
       ? groups.filter((group) => group !== label)
       : [...groups, label]);
   }
 
-  laneOrders(status: OrderStatus): StaffOrder[] {
-    return this.orders()
-      .filter((order) => order.status === status)
-      .reverse();
-  }
   statusLabel(status: OrderStatus): string {
     return this.statuses.find((option) => option.id === status)?.label ?? status;
   }
   openEditor(order: StaffOrder | 'new', table: string | null = null, tableId: string | null = null): void {
+    if (!this.canTakeOrders()) return;
     this.editorTable.set(table);
     this.editorTableId.set(tableId);
     this.editor.set(order);
@@ -435,22 +458,35 @@ export class OperationsPanel implements OnInit, OnDestroy {
   nextAction(order: StaffOrder): string {
     return this.statuses.find((option) => option.id === order.status)?.action ?? '';
   }
-  quantity(order: StaffOrder): number {
-    return order.items.reduce((total, item) => total + item.quantity, 0);
-  }
-  minutes(order: StaffOrder): number {
-    return Math.max(0, Math.floor((this.now() - new Date(order.createdAt).getTime()) / 60000));
-  }
-
   async advance(order: StaffOrder): Promise<void> {
     const next = this.statuses.find((status) => status.id === order.status)?.next;
-    if (next) await this.updateStatus(order, next);
+    if (next && (next === 'delivered' || this.canPrepare())) await this.updateStatus(order, next);
+  }
+
+  async advanceTicket({ order, ticket }: { order: StaffOrder; ticket: ProductionTicket }): Promise<void> {
+    if (!this.canPrepare() || this.changing().has(order.id)) return;
+    this.changing.update((ids) => new Set([...ids, order.id]));
+    this.error.set('');
+    try {
+      await this.api.advanceTicket(order, ticket.center, ticket.status);
+      this.feedRevision++;
+      const state = ticket.status === 'pending' ? 'Preparando' : 'Listo';
+      this.showNotice(`Pedido #${order.number} · ${ticket.name} · ${state}.`);
+      void this.playSound('status');
+    } catch (error) {
+      this.error.set(this.message(error));
+    } finally {
+      await this.refresh();
+      if (this.selected()?.id === order.id) await this.openDetails(order);
+      this.changing.update((ids) => new Set([...ids].filter((id) => id !== order.id)));
+    }
   }
 
   requestCancellation(order: StaffOrder): void {
     const dialog = this.cancellationDialog()?.nativeElement;
     if (!dialog || dialog.open || !isActiveOrderStatus(order.status) || this.changing().has(order.id)) return;
     this.cancellationReason = '';
+    this.cancellationReviewed.set(false);
     this.cancellationError.set('');
     this.cancellation.set(order);
     dialog.showModal();
@@ -459,7 +495,12 @@ export class OperationsPanel implements OnInit, OnDestroy {
   async confirmCancellation(): Promise<void> {
     const order = this.cancellation();
     const reason = this.cancellationReason.trim();
-    if (order && reason) await this.updateStatus(order, 'cancelled', reason);
+    if (!order || !reason) return;
+    if (!this.cancellationReviewed()) {
+      this.cancellationReviewed.set(true);
+      return;
+    }
+    await this.updateStatus(order, 'cancelled', reason);
   }
 
   private async updateStatus(order: StaffOrder, next: OrderStatus, reason?: string): Promise<void> {
@@ -538,13 +579,6 @@ export class OperationsPanel implements OnInit, OnDestroy {
         ? { id: user.id, name: user.name, username: user.username, role: user.role, password: '' }
         : { name: '', username: '', role: 'kitchen', password: '' },
     );
-    if (window.matchMedia('(max-width: 1200px)').matches) {
-      requestAnimationFrame(() =>
-        document
-          .querySelector('.staff-editor')
-          ?.scrollIntoView({ block: 'start', behavior: 'smooth' }),
-      );
-    }
   }
 
   async saveUser(): Promise<void> {
@@ -579,6 +613,7 @@ export class OperationsPanel implements OnInit, OnDestroy {
 
   async toggleUser(user: StaffUser): Promise<void> {
     if (this.busy()) return;
+    if (user.active && !(await this.removalConfirmation.ask('Desactivar acceso', 'Se desactivará el acceso de «' + user.name + '».', 'Desactivar acceso'))) return;
     this.busy.set(true);
     this.error.set('');
     try {

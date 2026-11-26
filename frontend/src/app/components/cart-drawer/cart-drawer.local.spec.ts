@@ -19,9 +19,6 @@ describe('CartDrawer local checkout', () => {
   beforeEach(() => {
     localStorage.removeItem('estacion-local-pending-order');
     localStorage.removeItem('estacion-local-last-order-v1');
-    operations = new LocalOperationsApi();
-    submit = spyOn(operations, 'submitOrder');
-    spyOn(operations, 'trackOrder').and.resolveTo();
     clear = jasmine.createSpy('clear');
     items = jasmine.createSpy('items').and.returnValue([
       {
@@ -32,7 +29,6 @@ describe('CartDrawer local checkout', () => {
     ]);
     TestBed.configureTestingModule({
       providers: [
-        { provide: LocalOperationsApi, useValue: operations },
         {
           provide: CartService,
           useValue: {
@@ -43,6 +39,9 @@ describe('CartDrawer local checkout', () => {
         },
       ],
     });
+    operations = TestBed.inject(LocalOperationsApi);
+    submit = spyOn(operations, 'submitOrder');
+    spyOn(operations, 'trackOrder').and.resolveTo();
     fixture = TestBed.createComponent(CartDrawer);
     fixture.componentRef.setInput('open', false);
     fixture.componentRef.setInput('directOrdering', true);
@@ -123,7 +122,7 @@ describe('CartDrawer local checkout', () => {
     fixture.detectChanges();
 
     tick(21_000);
-    expect(new LocalOperationsApi().receipt()?.status).toBe('ready');
+    expect(TestBed.runInInjectionContext(() => new LocalOperationsApi()).receipt()?.status).toBe('ready');
     expect(panel.querySelector('.order-receipt')?.textContent).toContain('Tu pedido está listo');
     expect(close).not.toHaveBeenCalled();
 
@@ -131,7 +130,7 @@ describe('CartDrawer local checkout', () => {
     fixture.detectChanges();
     tick(19_999);
     expect(panel.querySelector('.order-receipt')?.textContent).toContain('Pedido entregado');
-    expect(new LocalOperationsApi().receipt()).toBeNull();
+    expect(TestBed.runInInjectionContext(() => new LocalOperationsApi()).receipt()).toBeNull();
     expect(close).not.toHaveBeenCalled();
 
     tick(1);

@@ -16,32 +16,32 @@
   <ng-template #workspaceNavigation>
       <nav aria-label="Gestión del restaurante">
         @for (group of visibleNav(); track group.label) {
-          <div class="nav-group" [class.grouped]="group.label" [class.collapsed]="collapsedGroups().includes(group.label)">
-            @if (group.label) {
+          <div class="nav-group" [class.grouped]="group.pages.length > 1"
+            [class.collapsed]="group.pages.length > 1 && !expandedGroups().includes(group.label)">
+            @if (group.pages.length > 1) {
               <button class="nav-group-toggle" type="button"
-                [attr.aria-expanded]="!collapsedGroups().includes(group.label)"
+                [class.current-group]="activeGroup() === group.label"
+                [attr.aria-expanded]="expandedGroups().includes(group.label)"
                 (click)="toggleNavGroup(group.label)">
-                {{ group.label }} <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="group.icon" /></svg>
+                <span>{{ group.label }}</span>
+                <svg class="group-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
               </button>
             }
             <div class="nav-group-links">
               @for (entry of group.entries; track entry.id) {
                 <a
                   [href]="viewUrl(entry.id)"
-                  (click)="closeNavigation()"
-                  [class.active]="view() === entry.id"
+                  (click)="navigate($event, entry.id)"
+                  [class.active]="isNavPageActive(entry.id)"
                   [attr.aria-label]="entry.label"
                   [attr.title]="entry.label"
-                  [attr.aria-current]="view() === entry.id ? 'page' : null"
+                  [attr.aria-current]="isNavPageActive(entry.id) ? 'page' : null"
                 >
-                  <svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="entry.icon" /></svg>
-                  <span class="nav-label">{{ entry.label }}</span>
-                  <span class="nav-compact-label">{{
-                    entry.id === 'catalog' ? 'Carta' : entry.id === 'orders' ? 'Pedidos' : entry.label
-                  }}</span>
-                  @if (entry.id === 'orders' && outsidePending()) {
-                    <small>{{ outsidePending() }}</small>
+                  @if (group.pages.length === 1) {
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path [attr.d]="group.icon" /></svg>
                   }
+                  <span class="nav-label">{{ entry.label }}</span>
                 </a>
               }
             </div>
@@ -52,7 +52,7 @@
   <div class="ops-layout">
     <aside class="ops-sidebar desktop-navigation">
       <a href="/" class="sidebar-logo"><img src="/brand/logo-full.png" alt="La Estación 365" /></a>
-      <div class="sidebar-label">Operación del restaurante</div>
+      <p class="navigation-caption">GESTIÓN DEL RESTAURANTE</p>
       <ng-container [ngTemplateOutlet]="workspaceNavigation" />
       <div class="sidebar-bottom"><a href="/" target="_blank" rel="noopener">Abrir carta digital <span aria-hidden="true">↗</span></a></div>
     </aside>
@@ -72,14 +72,15 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
           <div class="breadcrumb">
-          Mi restaurante <span>/</span> <strong>{{ pageTitle() }}</strong>
+          @if (activeGroup() !== pageTitle()) { {{ activeGroup() }} <span>/</span> }
+          <strong>{{ pageTitle() }}</strong>
           </div>
         </div>
         <div class="topbar-account">
           <span class="staff-avatar">{{ api.user()?.name?.charAt(0) }}</span>
           <div>
             <strong>{{ api.user()?.name }}</strong
-            ><small>{{ isAdmin() ? 'Administrador' : 'Equipo de cocina' }}</small>
+            ><small>{{ currentRole() }}</small>
           </div>
           <button
             class="icon-button"
@@ -96,29 +97,21 @@
       <main class="ops-main">
         <section class="ops-heading">
           <div>
-            <div class="date-eyebrow">
-              {{ now() | date: 'EEEE d MMMM' : '-0500' : 'es-PE' }} <span>·</span> LA ESTACIÓN 365
-            </div>
+            @if (view() !== 'analytics' && view() !== 'reports') {
+              <div class="date-eyebrow">
+                {{ now() | date: 'EEEE d MMMM' : '-0500' : 'es-PE' }} <span>·</span> LA ESTACIÓN 365
+              </div>
+            }
             <h1>{{ pageTitle() }}</h1>
-            <p>
-              {{
-                view() === 'kitchen'
-                  ? 'Organiza y actualiza las comandas activas.'
-                  : view() === 'history'
-                    ? 'Consulta los pedidos entregados y cancelados.'
-                    : view() === 'users'
-                      ? 'Administra las cuentas y los permisos del equipo.'
-                      : view() === 'catalog'
-                        ? 'Actualiza platos, fotografías, precios y disponibilidad desde aquí.'
-                        : view() === 'reports'
-                          ? 'Consulta qué platos tienen más demanda en tu restaurante.'
-                          : view() === 'salon'
-                            ? 'Consulta las mesas y toma pedidos por zona.'
-                            : 'Gestiona pedidos para recojo y entrega a domicilio.'
-              }}
-            </p>
+            @if (pageDescription()) { <p>{{ pageDescription() }}</p> }
           </div>
-          <div class="heading-actions">
+          @if (view() === 'salon' || view() === 'kitchen') { <div class="heading-actions">
+            @if (canTakeOrders()) {
+              <a class="ops-secondary public-menu-link" href="/" target="_blank" rel="noopener noreferrer" title="Abrir la misma carta digital que ven los clientes en otra pestaña">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v16M3 3h5a4 4 0 0 1 4 2 4 4 0 0 1 4-2h5v16h-5a4 4 0 0 0-4 2 4 4 0 0 0-4-2H3z" /></svg>
+                Ver carta digital
+              </a>
+            }
             <span class="connection" [class.offline]="!online()"
               ><i></i>{{ online() ? 'En vivo' : 'Sin conexión' }}</span
             ><button
@@ -135,10 +128,10 @@
                 }</svg
               >{{ soundReady() ? 'Avisos activados' : sound() ? 'Silenciar avisos' : 'Activar sonido' }}
             </button>
-          </div>
+          </div> }
         </section>
 
-        @if (sound() && !soundReady()) {
+        @if (canViewOrders() && sound() && !soundReady()) {
           <p class="sound-hint" role="status">Haz clic en el panel para reactivar el sonido.</p>
         }
 
@@ -161,7 +154,7 @@
           </div>
         }
 
-        @if (view() === 'orders' || view() === 'kitchen') {
+        @if (view() === 'kitchen') {
           <section
             class="ops-stats"
             [class.kitchen-summary]="view() === 'kitchen'"
@@ -213,7 +206,7 @@
           </section>
         }
 
-        @if (isAdmin() && editor(); as draft) {
+        @if (canTakeOrders() && editor(); as draft) {
           <app-operations-order-form
             [order]="draft === 'new' ? null : draft"
             [initialTable]="editorTable()"
@@ -225,7 +218,7 @@
         }
 
         @if (view() === 'salon') {
-          <app-operations-salon [orders]="orders()" [online]="online()"
+          <app-operations-salon [orders]="orders()" [online]="online()" [canConfigure]="isAdmin()" [settingsMode]="page() === 'settings-tables'"
             (newOrder)="openEditor('new', $event.label, $event.id)"
             (orderDetails)="openDetails($event)"
             (editOrder)="openEditor($event)"
@@ -233,154 +226,32 @@
           />
         }
 
-        @if (view() === 'orders') {
-          <section class="ops-card orders-card">
-            <div class="card-title">
-              <div>
-                <h2>Pedidos en curso</h2>
-                <p>{{ listedOrders().length }} pedidos en curso</p>
-              </div>
-              @if (isAdmin()) {
-                <button class="ops-primary" type="button" (click)="openEditor('new')">+ Nuevo pedido</button>
-              }
-            </div>
-            <div class="order-filters">
-              <nav aria-label="Filtrar pedidos por estado">
-                <button
-                  type="button"
-                  [class.selected]="statusFilter() === 'all'"
-                  (click)="statusFilter.set('all')"
-                >
-                  Todos <small>{{ listedOrders().length }}</small>
-                </button>
-                @for (status of lanes; track status.id) {
-                  <button
-                    type="button"
-                    [class.selected]="statusFilter() === status.id"
-                    (click)="statusFilter.set(status.id)"
-                  >
-                    {{ status.label }}
-                  </button>
-                }
-              </nav>
-              <label class="ops-search"
-                ><svg viewBox="0 0 24 24" aria-hidden="true">
-                  <circle cx="10" cy="10" r="6" />
-                  <path d="m15 15 5 5" /></svg
-                ><input
-                  type="search"
-                  placeholder="Buscar pedido, cliente o mesa"
-                  aria-label="Buscar pedido, cliente o mesa"
-                  [ngModel]="search()"
-                  (ngModelChange)="search.set($event)"
-              /></label>
-            </div>
-            <label class="include-salon">
-              <input #salonFilter type="checkbox" [checked]="includeSalon()" (change)="includeSalon.set(salonFilter.checked)" />
-              Incluir pedidos de salón
-            </label>
-            <div class="ops-table-wrap">
-              <table class="ops-table">
-                <thead>
-                  <tr>
-                    <th>Pedido</th>
-                    <th>Cliente</th>
-                    <th>Modalidad</th>
-                    <th>Recibido</th>
-                    <th>Importe</th>
-                    <th>Estado</th>
-                    <th><span class="visually-hidden">Acciones</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (order of filteredOrders(); track order.id) {
-                    <tr>
-                      <td data-label="Pedido">
-                        <button class="order-number" (click)="openDetails(order)">
-                          #{{ order.number }}</button
-                        ><small>{{ quantity(order) }} unidades</small>
-                      </td>
-                      <td data-label="Cliente">
-                        <strong>{{ order.customerName || 'Sin nombre' }}</strong
-                        ><small>{{ order.customerPhone }}</small>
-                      </td>
-                      <td data-label="Modalidad">
-                        <span class="method-tag" [class.delivery]="order.method === 'delivery'">{{
-                          staffOrderMethod(order)
-                        }}</span>
-                      </td>
-                      <td data-label="Recibido">
-                        <strong>{{ order.createdAt | date: 'HH:mm' : '-0500' }}</strong
-                        ><small [class.waiting-long]="minutes(order) >= 15"
-                          >Hace {{ minutes(order) }} min</small
-                        >
-                      </td>
-                      <td data-label="Importe">
-                        <strong>{{
-                          order.totalCents / 100
-                            | currency: 'PEN' : 'symbol-narrow' : '1.2-2' : 'es-PE'
-                        }}</strong
-                        ><small>{{ staffOrderPayment(order) }}</small>
-                      </td>
-                      <td data-label="Estado">
-                        <span [class]="'status-badge ' + order.status"
-                          ><i></i>{{ statusLabel(order.status) }}</span
-                        >
-                      </td>
-                      <td data-label="Acciones">
-                        <button
-                          class="detail-button"
-                          (click)="openDetails(order)"
-                          [attr.aria-label]="'Ver pedido ' + order.number"
-                        >
-                          Ver detalle <span>→</span>
-                        </button>
-                        @if (isAdmin() && order.status === 'pending') {
-                          <button class="detail-button" type="button" (click)="openEditor(order)"
-                            [attr.aria-label]="'Editar pedido ' + order.number">Editar</button>
-                        }
-                      </td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-            @if (!filteredOrders().length) {
-              <div class="ops-empty">
-                <svg viewBox="0 0 64 64" aria-hidden="true">
-                  <path d="M18 8h22l8 8v40H16V8h2ZM25 25h14M25 34h14M25 43h8M40 8v10h8" />
-                </svg>
-                <h3>
-                  {{
-                    listedOrders().length
-                      ? 'No encontramos ese pedido'
-                      : 'La cocina está lista para empezar'
-                  }}
-                </h3>
-                <p>
-                  {{
-                    listedOrders().length
-                      ? 'Prueba otro nombre, número o estado.'
-                      : 'Los pedidos confirmados desde la carta aparecerán aquí automáticamente.'
-                  }}
-                </p>
-                @if (!listedOrders().length) {
-                  <a href="/" target="_blank" class="ops-primary" rel="noopener"
-                    >Abrir carta digital <span>↗</span></a
-                  >
-                }
-              </div>
-            }
-          </section>
-        }
-
         @if (view() === 'kitchen') {
+          <section class="workflow-card kitchen-tools" aria-label="Seguimiento de pedidos">
+            <div class="workflow-section-heading">
+              <h2>Todos los pedidos</h2>
+              @if (canTakeOrders()) { <button class="ops-primary" type="button" (click)="openEditor('new')">+ Nuevo pedido</button> }
+            </div>
+            <div class="workflow-filters">
+              <label>Modalidad<select [ngModel]="methodFilter()" (ngModelChange)="methodFilter.set($event)">
+                <option value="all">Todas las modalidades</option><option value="table">Mesa</option><option value="delivery">Delivery</option><option value="pickup">Para recoger</option>
+              </select></label>
+              <label>Estado<select [ngModel]="statusFilter()" (ngModelChange)="statusFilter.set($event)">
+                <option value="all">Todos los estados</option>@for (status of lanes; track status.id) { <option [value]="status.id">{{ status.label }}</option> }
+              </select></label>
+              <label>Buscar pedido<input type="search" aria-label="Buscar pedido, cliente o mesa" placeholder="Número, cliente o mesa" [ngModel]="search()" (ngModelChange)="search.set($event)"></label>
+            </div>
+          </section>
           <app-operations-kitchen
-            [orders]="orders()"
+            [orders]="filteredOrders()"
+            [canPrepare]="canPrepare()"
+            [canEdit]="canTakeOrders()"
+            (editRequested)="openEditor($event)"
             [changing]="changing()"
             [now]="now()"
             (detailsRequested)="openDetails($event)"
             (advanced)="advance($event)"
+            (ticketAdvanced)="advanceTicket($event)"
             (cancellationRequested)="requestCancellation($event)"
           />
         }
@@ -496,7 +367,7 @@
         }
 
         @if (view() === 'users' && isAdmin()) {
-          <div class="team-layout" [class.editing]="staffForm()">
+          <div class="team-layout">
             <section class="ops-card">
               <div class="card-title">
                 <div>
@@ -523,7 +394,7 @@
                       <span>{{ user.username }}</span>
                     </div>
                     <span [class]="'role-badge ' + user.role">{{
-                      user.role === 'admin' ? 'Administrador' : 'Cocina'
+                      roleLabels[user.role]
                     }}</span
                     ><span class="staff-active"
                       ><i [class.disabled]="!user.active"></i
@@ -547,60 +418,25 @@
                 <table>
                   <thead>
                     <tr>
+                      <th>Función</th>
                       <th>Acceso</th>
-                      <th>Administrador</th>
-                      <th>Cocina</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td>Ver pedidos y comandas</td>
-                      <td>✓</td>
-                      <td>✓</td>
-                    </tr>
-                    <tr>
-                      <td>Actualizar preparación y entrega</td>
-                      <td>✓</td>
-                      <td>✓</td>
-                    </tr>
-                    <tr>
-                      <td>Consultar historial</td>
-                      <td>✓</td>
-                      <td>✓</td>
-                    </tr>
-                    <tr>
-                      <td>Editar carta, fotos y precios</td>
-                      <td>✓</td>
-                      <td>—</td>
-                    </tr>
-                    <tr>
-                      <td>Consultar reportes de demanda</td>
-                      <td>✓</td>
-                      <td>—</td>
-                    </tr>
-                    <tr>
-                      <td>Administrar usuarios</td>
-                      <td>✓</td>
-                      <td>—</td>
-                    </tr>
+                    @for (access of roleAccess; track access[0]) {
+                      <tr><td>{{ access[0] }}</td><td>{{ access[1] }}</td></tr>
+                    }
                   </tbody>
                 </table>
               </div>
             </section>
             @if (staffForm(); as form) {
-              <aside class="ops-card staff-editor">
-                <div class="card-title">
-                  <h2>{{ form.id ? 'Editar acceso' : 'Nuevo usuario' }}</h2>
-                  <button
-                    class="icon-button"
-                    type="button"
-                    (click)="staffForm.set(null)"
-                    aria-label="Cerrar formulario de usuario"
-                  >
-                    ×
-                  </button>
-                </div>
-                <form (ngSubmit)="saveUser()">
+              <app-record-dialog [title]="form.id ? 'Editar acceso' : 'Nuevo usuario'" [busy]="busy()" (closed)="staffForm.set(null)">
+              <section class="ops-card staff-editor">
+                @if (error()) { <p class="workflow-error" role="alert">{{ error() }}</p> }
+
+                <form #staffEditor="ngForm" (ngSubmit)="staffEditor.valid && saveUser()">
+                  <fieldset class="record-form-fields" [disabled]="busy()">
                   <label for="staff-name">Nombre</label
                   ><input
                     id="staff-name"
@@ -621,8 +457,8 @@
                     [(ngModel)]="form.username"
                   /><label for="staff-role">Función</label
                   ><select id="staff-role" name="role" [(ngModel)]="form.role">
-                    <option value="kitchen">Cocina</option>
-                    <option value="admin">Administrador</option></select
+                    @for (role of roles; track role[0]) { <option [value]="role[0]">{{ role[1] }}</option> }
+                  </select
                   ><label for="staff-password">{{
                     form.id ? 'Nueva contraseña (opcional)' : 'Contraseña'
                   }}</label
@@ -636,11 +472,13 @@
                     autocomplete="new-password"
                     [(ngModel)]="form.password"
                     placeholder="Mínimo 10 caracteres"
-                  /><button class="ops-primary" type="submit" [disabled]="busy()">
+                  /><button class="ops-primary" type="submit" [disabled]="busy() || staffEditor.invalid">
                     {{ busy() ? 'Guardando…' : 'Guardar acceso' }} →
                   </button>
+                  </fieldset>
                 </form>
-              </aside>
+              </section>
+              </app-record-dialog>
             }
           </div>
         }
@@ -648,7 +486,23 @@
           <app-admin-panel [embedded]="true" />
         }
         @if (view() === 'reports' && isAdmin()) {
-          <app-operations-reports />
+          <app-operations-workflow-reports [page]="page()" />
+        }
+        @if (view() === 'analytics') {
+          <app-operations-sales-reports [page]="page()" />
+        }
+        @if (view() === 'categories' || view() === 'modifiers') {
+          <app-operations-menu-settings [page]="page()" />
+        }
+        @if (view() === 'cash') {
+          <app-operations-cash [page]="page()" (changed)="refresh()" (closedShift)="selectView('cash-history')" />
+        }
+        @if (view() === 'inventory') {
+          @if (page() === 'inventory-incidents') { <app-inventory-incidents /> }
+          @else { <app-operations-inventory [page]="page()" (pageRequested)="navigate($event.event, $event.id)" /> }
+        }
+        @if (view() === 'settings') {
+          <app-operations-settings [page]="page()" />
         }
       </main>
     </div>
@@ -657,6 +511,7 @@
   @if (selected(); as order) {
     <app-operations-order-detail
       [data]="order"
+      [canPrepare]="canPrepare()"
       [busy]="changing().has(order.id)"
       (closed)="selected.set(null)"
       (advanced)="advance($event)"
@@ -685,16 +540,19 @@
         autofocus
         placeholder="Ej. El cliente solicitó la cancelación"
         [(ngModel)]="cancellationReason"
+        (ngModelChange)="cancellationReviewed.set(false)"
         [disabled]="cancelling"
       ></textarea>
+      @if (cancellationReviewed()) { <p role="status">Confirma por segunda vez la cancelación del pedido #{{ cancellation()?.number }}.</p> }
       @if (cancellationError()) { <p class="cancel-error" role="alert">{{ cancellationError() }}</p> }
       <div class="cancel-actions">
         <button class="ops-secondary" type="button" [disabled]="cancelling" (click)="cancellationDialog.close()">Volver</button>
         <button class="ops-primary cancel-confirm" type="submit" [disabled]="cancelling || !cancellationReason.trim()">
-          {{ cancelling ? 'Cancelando…' : 'Confirmar cancelación' }}
+          {{ cancelling ? 'Cancelando…' : cancellationReviewed() ? 'Confirmar cancelación' : 'Continuar' }}
         </button>
       </div>
     </form>
   </dialog>
 }
+@if (removalConfirmation.pending()) { <app-removal-confirmation /> }
 </app-operations-theme>

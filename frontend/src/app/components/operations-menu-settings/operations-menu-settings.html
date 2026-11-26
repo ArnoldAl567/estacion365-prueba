@@ -1,0 +1,70 @@
+<div class="workflows" [attr.aria-busy]="busy()">
+  @if (error()) { <p class="workflow-error" role="alert">{{ error() }} <button type="button" (click)="load(page())">Reintentar</button></p> }
+  @if (notice()) { <p class="workflow-notice" role="status">{{ notice() }}</p> }
+  @if (page() === 'categories') {
+    <section class="workflow-card">
+      <div class="workflow-inline">
+        <label>Buscar categoría <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" placeholder="Nombre de la categoría"></label>
+      </div>
+      <div class="workflow-table" tabindex="0" role="region" aria-label="Tabla de registros">
+        <table>
+          <thead><tr><th>Categoría</th><th>Productos</th><th>Disponibles</th><th>Centro de preparación</th><th>Acciones</th></tr></thead>
+          <tbody>
+            @for (entry of matching(); track entry.id) {
+              <tr><th scope="row">{{ entry.name }}</th><td>{{ entry.total }}</td><td>{{ entry.available }}</td><td>{{ entry.center }}</td>
+                <td>
+                  @if (entry.id !== 'sin-categoria') {
+                    <button type="button" [disabled]="busy()" (click)="editCategory(entry)" [attr.aria-label]="'Editar ' + entry.name">Editar</button><button class="danger-action" type="button" [disabled]="busy()" (click)="removeCategory(entry)" [attr.aria-label]="'Eliminar ' + entry.name">Eliminar</button>
+                  }
+                  @if (entry.id === 'sin-categoria') { <button type="button" class="danger-action" [disabled]="busy()" (click)="removeCategory(entry)" [attr.aria-label]="'Eliminar ' + entry.name">Eliminar</button> }
+                </td>
+              </tr>
+            } @empty {
+              <tr><td colspan="5">{{ busy() ? 'Cargando categorías…' : 'No hay categorías para mostrar.' }}</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  } @else {
+    <div class="workflow-tabs"><button class="ops-primary" type="button" [disabled]="busy()" (click)="newModifier()">+ Nuevo modificador</button></div>
+    <section class="workflow-card">
+      <h2>Opciones guardadas</h2>
+      <div class="workflow-table" tabindex="0" role="region" aria-label="Tabla de registros">
+        <table>
+          <thead><tr><th>Modificador</th><th>Acciones</th></tr></thead>
+          <tbody>
+            @for (entry of modifiers(); track entry.id) {
+              <tr><th scope="row">{{ entry.name }}</th><td>
+                <div class="workflow-inline">
+                  <button type="button" [disabled]="busy()" (click)="editModifier(entry)" [attr.aria-label]="'Editar ' + entry.name">Editar</button>
+                  <button type="button" class="danger-action" [disabled]="busy()" (click)="removeModifier(entry)">Eliminar</button>
+                </div>
+              </td></tr>
+            } @empty {
+              <tr><td colspan="2">{{ busy() ? 'Cargando modificadores…' : 'Aún no hay opciones guardadas.' }}</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+  <dialog #editDialog class="menu-edit-dialog" aria-labelledby="menu-edit-title" (cancel)="closeEdit($event)" (close)="editing.set(null)">
+    @if (editing(); as editor) {
+      <form class="workflow-card" #editForm="ngForm" (ngSubmit)="saveEdit(editor)">
+        <h2 id="menu-edit-title">{{ editor.kind === 'category' ? 'Editar categoría' : editor.id ? 'Editar modificador' : 'Nuevo modificador' }}</h2>
+        @if (editError()) { <p class="workflow-error" role="alert">{{ editError() }}</p> }
+        <label>Nombre
+          <input name="name" [(ngModel)]="editor.name" required [maxlength]="editor.kind === 'category' ? 80 : 40" [disabled]="busy()">
+        </label>
+        @if (editor.kind === 'category') {
+          <p>Los productos de esta categoría se preparan en Cocina.</p>
+        }
+        <div class="workflow-inline">
+          <button type="submit" class="ops-primary" [disabled]="busy() || editForm.invalid || !editor.name.trim()">Guardar cambios</button>
+          <button type="button" [disabled]="busy()" (click)="closeEdit()">Cancelar</button>
+        </div>
+      </form>
+    }
+  </dialog>
+</div>

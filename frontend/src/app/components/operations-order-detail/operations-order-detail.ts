@@ -11,6 +11,7 @@ import { isActiveOrderStatus, ORDER_STATUSES, OrderStatus, StaffOrder, staffOrde
 export class OperationsOrderDetail implements AfterViewInit {
   readonly data = input.required<StaffOrder>();
   readonly busy = input(false);
+  readonly canPrepare = input(false);
   readonly closed = output<void>();
   readonly advanced = output<StaffOrder>();
   readonly cancellationRequested = output<StaffOrder>();

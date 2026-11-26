@@ -8,10 +8,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 class StaffAccess
 {
-    public function handle(Request $request, Closure $next, ?string $role = null): Response
+    public function handle(Request $request, Closure $next, string ...$roles): Response
     {
         abort_unless($request->user()?->active, 401, 'Inicia sesión para continuar.');
-        abort_if($role && $request->user()->role !== $role, 403, 'Tu cuenta no tiene permiso para esta acción.');
+        abort_if($roles && ! in_array($request->user()->role, $roles, true), 403, 'Tu cuenta no tiene permiso para esta acción.');
 
         return $next($request);
     }

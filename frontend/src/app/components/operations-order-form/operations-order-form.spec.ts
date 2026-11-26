@@ -23,7 +23,7 @@ describe('Order editor dialog', () => {
         provide: LocalOperationsApi,
         useValue: {
           catalog: () => Promise.resolve({ items: [product], prices: DEFAULT_DAILY_PRICES }),
-          orderModifiers: () => Promise.resolve({ modifiers: [] }),
+          orderModifiers: () => Promise.resolve({ modifiers: [{ id: 1, name: 'Sin cebolla' }] }),
           saveStaffOrder,
         },
       }],
@@ -89,13 +89,16 @@ describe('Order editor dialog', () => {
     await fixture.whenStable();
     fixture.detectChanges();
     const register = dialog.querySelector<HTMLButtonElement>('footer button[type="submit"]')!;
+    expect(dialog.querySelector('.modifier-settings')).toBeNull();
+    expect(dialog.textContent).not.toContain('Configurar opciones de preparación');
+    editor.applyModifier(editor.lines[0], 'Sin cebolla');
     expect(register.disabled).toBeFalse();
     register.click();
     await fixture.whenStable();
     expect(saveStaffOrder).toHaveBeenCalledWith(
       jasmine.objectContaining({
         customer: jasmine.objectContaining({ tableLabel: '4' }),
-        items: [jasmine.objectContaining({ productId: product.source_id, quantity: 1 })],
+        items: [jasmine.objectContaining({ productId: product.source_id, quantity: 1, modifiers: ['Sin cebolla'] })],
       }),
       null,
       jasmine.any(String),

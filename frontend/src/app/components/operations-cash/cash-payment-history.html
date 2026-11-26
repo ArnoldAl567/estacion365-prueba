@@ -1,0 +1,94 @@
+<div class="workflows" [attr.aria-busy]="busy()">
+  <section class="workflow-card">
+    <h2>Historial de cobros</h2>
+    <p>Consulta los pagos recibidos, incluso después de cerrar la mesa o el turno. Fechas de cobro · Hora de Lima.</p>
+    <form class="workflow-form payment-history-filters" (ngSubmit)="applyFilters()">
+      <div class="workflow-grid">
+        <label>Desde<input type="date" name="from" [(ngModel)]="filters.from"></label>
+        <label>Hasta<input type="date" name="to" [(ngModel)]="filters.to" [min]="filters.from"></label>
+        <label>Mesa<select name="table" [(ngModel)]="filters.table" [disabled]="busy()">
+          <option value="">Todas las mesas</option>
+          @for (table of options().tables; track table) { <option [value]="table">{{ table }}</option> }
+        </select></label>
+        <label>Turno<select name="shift" [(ngModel)]="filters.shift" [disabled]="busy()">
+          <option value="">Todos los turnos</option>
+          @for (shift of options().shifts; track shift) { <option [value]="shift">{{ shift }}</option> }
+        </select></label>
+        <label>Medio de pago<select name="method" [(ngModel)]="filters.method">
+          <option value="">Todos</option>
+          @for (method of options().methods; track method.method + method.method_name) {
+            <option [value]="method.method">{{ method.method_name }}</option>
+          }
+        </select></label>
+      </div>
+      <div class="workflow-inline">
+        <button class="ops-primary" type="submit" [disabled]="busy()">Buscar cobros</button>
+        <button type="button" [disabled]="busy()" (click)="clearFilters()">Limpiar filtros</button>
+      </div>
+    </form>
+  </section>
+  @if (busy()) { <p role="status">Consultando cobros…</p> }
+  @if (error()) { <p class="workflow-error" role="alert">{{ error() }} <button type="button" (click)="load()">Reintentar</button></p> }
+  @if (data(); as history) {
+    <section class="workflow-card">
+      <dl class="workflow-metrics">
+        <div><dt>Cobros encontrados</dt><dd>{{ history.records.total }}</dd></div>
+        <div><dt>Total cobrado según filtros</dt><dd>{{ money(history.total_cents) }}</dd></div>
+      </dl>
+      <div class="workflow-table" tabindex="0" role="region" aria-label="Historial de cobros"><table>
+        <thead><tr><th>Fecha y hora</th><th>Pedido</th><th>Servicio</th><th>Importe</th><th>Medio de pago</th><th>Cajero</th><th>Turno</th><th>Mesa</th><th>Detalle</th></tr></thead>
+        <tbody>
+          @for (payment of history.records.data; track payment.id) {
+            <tr>
+              <td>{{ payment.paid_at | operationTimestamp }}</td><td><strong>#{{ payment.order_id.toString().padStart(4, '0') }}</strong></td>
+              <td>{{ service(payment) }}</td><td>{{ money(payment.amount_cents) }}</td><td>{{ payment.method_name }}</td>
+              <td>{{ payment.cashier_name }}</td><td>{{ payment.shift_name }} · #{{ payment.shift_id }}</td>
+              <td>@if (payment.delivery_method === 'table') { <span class="workflow-badge">{{ payment.table_closed_at ? 'Cerrada' : 'Abierta' }}</span> } @else { — }</td>
+              <td><button type="button" [disabled]="busy() || detailBusy()" (click)="openDetail(payment.id)">Ver detalle</button></td>
+            </tr>
+          } @empty { <tr><td colspan="9">No hay cobros que coincidan con los filtros seleccionados.</td></tr> }
+        </tbody>
+      </table></div>
+      <div class="workflow-inline">
+        <button type="button" [disabled]="busy() || history.records.current_page <= 1" (click)="load(history.records.current_page - 1)">Anterior</button>
+        <span>Página {{ history.records.current_page }} de {{ history.records.last_page }}</span>
+        <button type="button" [disabled]="busy() || history.records.current_page >= history.records.last_page" (click)="load(history.records.current_page + 1)">Siguiente</button>
+      </div>
+    </section>
+  }
+</div>
+@if (detailOpen()) {
+  <app-record-dialog title="Detalle del cobro" [busy]="detailBusy()" (closed)="detailOpen.set(false)">
+    @if (detailBusy()) { <p role="status">Consultando detalle…</p> }
+    @if (detailError()) { <p class="workflow-error" role="alert">{{ detailError() }}</p> }
+    @if (detail(); as entry) {
+      <section class="workflow-card">
+        <h3>Pedido #{{ entry.order.number }} · {{ staffOrderMethod(entry.order) }}</h3>
+        <div class="payment-detail-meta">
+        <p>Cobrado el {{ entry.payment.paid_at | operationTimestamp }} · Hora de Lima</p>
+        <p>{{ entry.payment.cashier_name }} · {{ entry.payment.shift_name }} #{{ entry.payment.shift_id }}</p>
+        @if (entry.order.customerName) { <p>Cliente: {{ entry.order.customerName }}</p> }
+        @if (entry.order.method === 'table') {
+          <p>Mesa {{ entry.order.tableClosedAt ? 'cerrada' : 'abierta' }}@if (entry.order.tableClosedAt) { · {{ entry.order.tableClosedAt | operationTimestamp }} }</p>
+        }
+        </div>
+        <div class="workflow-table" tabindex="0" role="region" aria-label="Productos del pedido cobrado"><table>
+          <thead><tr><th>Producto</th><th>Cantidad</th><th>Precio unitario</th><th>Subtotal</th></tr></thead>
+          <tbody>@for (line of entry.order.items; track $index) {
+            <tr><td><strong>{{ line.name }}</strong>
+              @if (line.main) { <p>{{ line.main }}</p> } @if (line.starter) { <p>Entrada: {{ line.starter }}</p> }
+              @if (line.menuType) { <p>{{ line.menuType }}</p> }
+              @for (modifier of line.modifiers ?? []; track $index) { <p>{{ modifier }}</p> }
+              @if (line.notes) { <p>{{ line.notes }}</p> }
+            </td><td>{{ line.quantity }}</td><td>{{ money(line.unitPriceCents) }}</td><td>{{ money(line.subtotalCents) }}</td></tr>
+          }</tbody>
+        </table></div>
+        <dl class="workflow-metrics">
+          <div><dt>Productos</dt><dd>{{ money(entry.order.subtotalCents) }}</dd></div>
+          <div><dt>Táperes</dt><dd>{{ money(entry.order.packagingCents) }}</dd></div>
+          <div><dt>Total cobrado · {{ entry.payment.method_name }}</dt><dd>{{ money(entry.payment.amount_cents) }}</dd></div>
+        </dl>
+      </section>
+    }
+  </app-record-dialog>
+}

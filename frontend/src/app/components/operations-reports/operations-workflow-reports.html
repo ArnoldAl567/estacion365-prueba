@@ -1,0 +1,56 @@
+<section class="workflows">
+  @if (page() === 'report-demand') {
+    <app-operations-reports />
+  } @else {
+    <form class="workflow-card workflow-filters" #filters="ngForm" (ngSubmit)="load()">
+      <label>Desde <input type="date" name="from" [(ngModel)]="from" [max]="to" required></label>
+      <label>Hasta <input type="date" name="to" [(ngModel)]="to" [min]="from" required></label>
+      <button class="ops-primary" [disabled]="busy() || filters.invalid || from > to">{{ busy() ? 'Cargando…' : 'Consultar' }}</button>
+    </form>
+    @if (busy() && !report()) { <p class="workflow-card" role="status">Cargando reporte…</p> }
+    @if (error()) { <p class="workflow-error" role="alert">{{ error() }}</p> }
+    @if (report(); as data) {
+      <p class="workflow-period">Periodo consultado · {{ data.from }} a {{ data.to }} · Hora de Lima</p>
+      @if (page() === 'report-expenses') {
+        <div class="workflow-metrics">
+          <article><span>Gastos</span><strong>{{ money(data.expenseTotal) }}</strong></article>
+        </div>
+      }
+      @if (page() === 'report-food') {
+        <section class="workflow-card">
+          <h2>Food Cost</h2>
+          <p>Compara el costo de insumos con el subtotal de los pedidos cobrados que tienen un registro completo de consumo.</p>
+          <div class="workflow-metrics">
+            <article><span>Costo de insumos</span><strong>{{ money(data.foodCost.cost_cents) }}</strong></article>
+            <article><span>Consumo sobre venta</span><strong>{{ foodPercent() === null ? 'Sin datos' : (foodPercent() | number:'1.1-1') + '%' }}</strong></article>
+            <article><span>Pedidos incluidos</span><strong>{{ data.foodCost.orders }}</strong><small>{{ data.foodCost.partial }} pedidos aparte con registro parcial</small></article>
+          </div>
+        </section>
+      }
+      @for (table of tables(); track table.title) {
+        <section class="workflow-card">
+          <h2>{{ table.title }}</h2>
+          <div class="workflow-table" tabindex="0" role="region" aria-label="Tabla de registros"><table>
+            <thead><tr>@for (column of table.columns; track column) { <th scope="col">{{ column }}</th> }</tr></thead>
+            <tbody>
+              @for (row of table.rows; track $index) {
+                <tr>@for (cell of row; track $index) { <td>{{ cell }}</td> }</tr>
+              } @empty { <tr><td [attr.colspan]="table.columns.length">Sin registros en el periodo.</td></tr> }
+            </tbody>
+          </table></div>
+          @if (table.title === 'Registro de actividad' || table.title === 'Gastos registrados') {
+            @let audit = page() === 'report-audit';
+            @let pagination = audit ? data.audit : data.expenses;
+            <div class="workflow-pagination">
+              <button type="button" [disabled]="busy() || pagination.current_page === 1"
+                (click)="audit ? load(1, pagination.current_page - 1) : load(pagination.current_page - 1)">Anterior</button>
+              <span>Página {{ pagination.current_page }}</span>
+              <button type="button" [disabled]="busy() || !pagination.next_page_url"
+                (click)="audit ? load(1, pagination.current_page + 1) : load(pagination.current_page + 1)">Siguiente</button>
+            </div>
+          }
+        </section>
+      }
+    }
+  }
+</section>

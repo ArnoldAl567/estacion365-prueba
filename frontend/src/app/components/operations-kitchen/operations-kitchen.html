@@ -1,3 +1,4 @@
+@if (printError()) { <p class="workflow-error" role="alert">{{ printError() }}</p> }
 <div class="kitchen-intro">
   <span><i></i> Comandas ordenadas por llegada</span
   ><small>Las indicaciones de cada plato acompañan su preparación.</small>
@@ -16,9 +17,11 @@
                 : lane.label
           }}
         </h2>
-        <span>{{ laneOrders(lane.id).length }}</span>
+        <span>{{ ticketsByLane().get(lane.id)?.length ?? 0 }}</span>
       </div>
-      @for (order of laneOrders(lane.id); track order.id) {
+      @for (entry of ticketsByLane().get(lane.id); track entry.order.id) {
+        @let order = entry.order;
+        @let ticket = entry.ticket;
         <article class="kitchen-ticket">
           <header>
             <button class="order-number" (click)="detailsRequested.emit(order)">
@@ -27,14 +30,14 @@
               >{{ elapsedTime(order) }}</span>
           </header>
           <div class="ticket-meta">
-            <span class="method-tag" [class.delivery]="order.method === 'delivery'">{{
-              staffOrderMethod(order)
+            <span class="method-tag" [class.delivery]="order.method === 'delivery'" [class.table]="order.method === 'table'" [class.pickup]="order.method === 'pickup'">{{
+              order.method === 'pickup' ? 'Para recoger' : order.method === 'delivery' ? 'Delivery' : 'Mesa · ' + (order.tableLabel || 'Sin asignar')
             }}</span
             ><time>{{ order.createdAt | date: 'HH:mm' : '-0500' }}</time>
           </div>
           @if (order.customerName) { <div class="ticket-customer">{{ order.customerName }}</div> }
           <div class="ticket-items">
-            @for (item of order.items; track $index) {
+            @for (item of ticket.items; track $index) {
               <div class="ticket-item">
                 <strong class="ticket-quantity">{{ item.quantity }}×</strong>
                 <div>
@@ -56,23 +59,33 @@
             }
           </div>
           <div class="ticket-actions">
-            <button
+            @if (canPrepare() || lane.id === 'ready') {
+              <button
               [class]="'ticket-action ' + lane.id"
               type="button"
               [disabled]="changing().has(order.id)"
-              (click)="advanced.emit(order)"
+              (click)="lane.id === 'ready' ? advanced.emit(order) : ticketAdvanced.emit(entry)"
             >
-              {{ changing().has(order.id) ? 'Actualizando…' : nextAction(order) }}
+              {{ changing().has(order.id) ? 'Actualizando…' : lane.action }}
               <span>→</span>
-            </button>
-            <button
+              </button>
+            } @else { <span class="preparation-status">{{ lane.id === 'pending' ? 'Esperando a Cocina' : 'Cocina está preparando el pedido' }}</span> }
+            @if (canEdit() && order.status === 'pending' && !order.paidAt) {
+              <button class="ticket-cancel" type="button" [disabled]="changing().has(order.id)" (click)="editRequested.emit(order)">Editar pedido</button>
+            }
+            @if (!order.paidAt) {
+              <button
               class="ticket-cancel"
               type="button"
               [attr.aria-label]="'Cancelar pedido #' + order.number"
               [disabled]="changing().has(order.id)"
               (click)="cancellationRequested.emit(order)"
-            >Cancelar</button>
+              >Cancelar</button>
+            }
           </div>
+          @if (ticket.printer) {
+            <button type="button" class="ticket-cancel" [disabled]="printing()" (click)="print(order, ticket)">Imprimir comanda</button>
+          }
         </article>
       } @empty {
         <div class="lane-empty">

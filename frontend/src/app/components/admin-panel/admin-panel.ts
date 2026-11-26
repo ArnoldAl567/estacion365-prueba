@@ -1,22 +1,27 @@
+import { createTransientNotice } from '../../services/transient-notice';
 import { Component, computed, inject, input, OnDestroy, OnInit, signal } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ADMIN_LOGIN } from '../../config/admin-login.config';
 import { CATEGORIES, DAILY_ADDON_CATEGORIES } from '../../data/menu.data';
 import { INITIAL_CATALOG } from '../../data/catalog-seed';
 import { CATALOG_LIMIT_MESSAGE, CatalogItem, CatalogKind, DailyPrices, DEFAULT_DAILY_PRICES, MAX_CATALOG_ITEMS } from '../../models/catalog.models';
 import { CatalogApiService } from '../../services/catalog-api.service';
+import { CatalogCategoryLabels } from '../../services/catalog-category-labels.service';
+import { RecordDialog } from '../record-dialog/record-dialog';
 
 type CatalogFilter = 'todos' | CatalogKind | 'entrada-adicional' | 'guarnicion';
 
 @Component({
   selector: 'app-admin-panel',
-  imports: [FormsModule],
+  imports: [FormsModule, NgTemplateOutlet, RecordDialog],
   templateUrl: './admin-panel.html',
   styleUrls: ['./admin-panel.scss', './admin-panel-accessible.scss'],
 })
 export class AdminPanel implements OnInit, OnDestroy {
   readonly embedded = input(false);
   private readonly api = inject(CatalogApiService);
+  readonly categoryLabels = inject(CatalogCategoryLabels);
   readonly configured = this.api.configured;
   readonly loading = signal(this.configured);
   readonly authenticated = signal(false);
@@ -27,7 +32,8 @@ export class AdminPanel implements OnInit, OnDestroy {
   readonly filter = signal<CatalogFilter>('carta');
   readonly search = signal('');
   readonly error = signal('');
-  readonly notice = signal('');
+  private readonly successNotice = createTransientNotice(() => this.embedded());
+  readonly notice = this.successNotice.value;
   readonly resetCompleted = signal(false);
   readonly filteredRows = computed(() => {
     const kind = this.filter();
@@ -44,9 +50,10 @@ export class AdminPanel implements OnInit, OnDestroy {
   readonly inactiveCount = computed(() => this.rows().length - this.activeCount());
   readonly embeddedImageCount = computed(() => this.rows().filter(row => row.image_url?.startsWith('data:image/webp;base64,')).length);
   readonly migrationStatus = signal('');
-  readonly categoryNames = new Map([...CATEGORIES, ...DAILY_ADDON_CATEGORIES].map(category => [category.id, category.shortName]));
+  readonly categoryNames = new Map<string, string>([...CATEGORIES, ...DAILY_ADDON_CATEGORIES].map(category => [category.id, category.shortName]));
   readonly categories = [...CATEGORIES, ...DAILY_ADDON_CATEGORIES];
   readonly prices = signal<DailyPrices>(DEFAULT_DAILY_PRICES);
+  readonly editingPrices = signal(false);
   priceForm: DailyPrices = { ...DEFAULT_DAILY_PRICES };
   username = '';
   password = '';
@@ -88,7 +95,7 @@ export class AdminPanel implements OnInit, OnDestroy {
     try {
       await this.api.signIn(ADMIN_LOGIN.email, this.password);
       this.password = '';
-      this.notice.set('');
+      this.successNotice.show('');
       this.authenticated.set(true);
       await this.loadCatalog();
     } catch (error) { this.error.set(this.message(error)); }
@@ -99,18 +106,18 @@ export class AdminPanel implements OnInit, OnDestroy {
     this.closeEditor();
     await this.api.signOut();
     this.authenticated.set(false);
-    this.notice.set('');
+    this.successNotice.show('');
     this.error.set('');
   }
 
   async requestPasswordReset(): Promise<void> {
     if (this.busy()) return;
     this.error.set('');
-    this.notice.set('');
+    this.successNotice.show('');
     this.busy.set(true);
     try {
       await this.api.requestPasswordReset(ADMIN_LOGIN.email);
-      this.notice.set('Enviamos un enlace al correo administrador para crear o cambiar la contraseña.');
+      this.successNotice.show('Enviamos un enlace al correo administrador para crear o cambiar la contraseña.');
     } catch (error) { this.error.set(this.message(error)); }
     finally { this.busy.set(false); }
   }
@@ -127,7 +134,7 @@ export class AdminPanel implements OnInit, OnDestroy {
       this.resetPasswordConfirmation = '';
       window.history.replaceState(null, '', '/panel-administrativo');
       this.resetCompleted.set(true);
-      this.notice.set('Contraseña creada. Ya puedes iniciar sesión.');
+      this.successNotice.show('Contraseña creada. Ya puedes iniciar sesión.');
     } catch (error) { this.error.set(this.message(error)); }
     finally { this.busy.set(false); }
   }
@@ -147,6 +154,7 @@ export class AdminPanel implements OnInit, OnDestroy {
       }
       this.rows.set(items);
       this.prices.set(prices);
+      this.editingPrices.set(false);
       this.priceForm = { ...prices };
       this.error.set('');
     } catch (error) { this.error.set(this.message(error)); }
@@ -165,7 +173,7 @@ export class AdminPanel implements OnInit, OnDestroy {
     this.editImagePreview = row.image_url ?? '';
     this.selectedFile = null;
     this.error.set('');
-    this.notice.set('');
+    this.successNotice.show('');
     this.revealEditor();
   }
 
@@ -196,11 +204,12 @@ export class AdminPanel implements OnInit, OnDestroy {
     this.selectedFile = null;
     this.editImagePreview = '';
     this.error.set('');
-    this.notice.set('');
+    this.successNotice.show('');
     this.revealEditor();
   }
 
   private revealEditor(): void {
+    if (this.embedded()) return;
     if (window.matchMedia('(max-width: 850px)').matches) {
       requestAnimationFrame(() => document.querySelector('.editor-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
     }
@@ -270,7 +279,7 @@ export class AdminPanel implements OnInit, OnDestroy {
         ? [...rows, saved].sort((a, b) => a.sort_order - b.sort_order)
         : rows.map(row => row.item_key === saved.item_key ? saved : row));
       this.closeEditor();
-      this.notice.set(creating ? 'Plato agregado y visible en la carta digital.' : 'Cambios guardados y visibles en la carta digital.');
+      this.successNotice.show(creating ? 'Plato agregado y visible en la carta digital.' : 'Cambios guardados y visibles en la carta digital.');
     } catch (error) {
       const message = this.message(error);
       if (message === CATALOG_LIMIT_MESSAGE) await this.loadCatalog();
@@ -285,7 +294,7 @@ export class AdminPanel implements OnInit, OnDestroy {
     if (!pending.length) return;
     this.busy.set(true);
     this.error.set('');
-    this.notice.set('');
+    this.successNotice.show('');
     let completed = 0;
     try {
       for (const row of pending) {
@@ -295,7 +304,7 @@ export class AdminPanel implements OnInit, OnDestroy {
         this.rows.update(rows => rows.map(current => current.item_key === saved.item_key ? saved : current));
         completed++;
       }
-      this.notice.set(`${completed} fotografías movidas al almacenamiento de imágenes.`);
+      this.successNotice.show(`${completed} fotografías movidas al almacenamiento de imágenes.`);
     } catch (error) {
       this.error.set(`Se movieron ${completed} de ${pending.length} fotografías. ${this.message(error)} Puedes reanudar la migración.`);
     } finally {
@@ -312,7 +321,7 @@ export class AdminPanel implements OnInit, OnDestroy {
       const saved = await this.api.updateItem({ ...row, active: !row.active });
       this.rows.update(rows => rows.map(current => current.item_key === saved.item_key ? saved : current));
       if (this.editForm?.item_key === saved.item_key) this.editForm = { ...saved };
-      this.notice.set(`${saved.name}: ${saved.active ? 'disponible' : 'agotado'}.`);
+      this.successNotice.show(`${saved.name}: ${saved.active ? 'disponible' : 'agotado'}.`);
     } catch (error) { this.error.set(this.message(error)); }
     finally { this.busy.set(false); }
   }
@@ -328,7 +337,7 @@ export class AdminPanel implements OnInit, OnDestroy {
     try {
       await this.api.updateDailyPrices(prices);
       this.prices.set(prices);
-      this.notice.set('Precios del menú del día actualizados.');
+      this.successNotice.show('Precios del menú del día actualizados.');
     } catch (error) { this.error.set(this.message(error)); }
     finally { this.busy.set(false); }
   }
@@ -336,7 +345,8 @@ export class AdminPanel implements OnInit, OnDestroy {
   kindLabel(row: CatalogItem): string {
     if (row.kind === 'fondo') return 'Fondo del día';
     if (row.kind === 'entrada') return 'Entrada del día';
-    return this.categoryNames.get(row.category_id ?? '') ?? 'Plato a la carta';
+    const id = row.category_id ?? '';
+    return this.categoryLabels.name(id, this.categoryNames.get(id) ?? 'Plato a la carta');
   }
 
   private message(error: unknown): string {

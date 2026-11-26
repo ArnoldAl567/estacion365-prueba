@@ -26,7 +26,7 @@ describe('Local operations panel', () => {
     window.sessionStorage.removeItem(soundKey);
   });
 
-  function configure(role: 'admin' | 'kitchen') {
+  function configure(role: 'admin' | 'kitchen' | 'waiter') {
     const user = signal({
       id: 1,
       name: 'Equipo de prueba',
@@ -45,6 +45,11 @@ describe('Local operations panel', () => {
         orders: [], pagination: { page: 1, lastPage: 1, total: 0 },
       }),
       users: jasmine.createSpy().and.resolveTo({ users: [] }),
+      workflow: jasmine.createSpy().and.resolveTo({
+        from: '2026-11-01', to: '2026-11-15',
+        days: [{ day: '2026-11-07', amount_cents: 4700, orders: 1 }],
+        payments: [], orders: [], expenseTotal: 0,
+      }),
       dishDemand: jasmine.createSpy().and.resolveTo({
         from: '2026-11-01', to: '2026-11-15', orderCount: 0, rankings: { carta: [], fondos: [], entradas: [] },
       }),
@@ -91,7 +96,7 @@ describe('Local operations panel', () => {
 
     const panel = fixture.componentInstance;
     const root: HTMLElement = fixture.nativeElement;
-    expect(window.location.hash).toBe('#salon');
+    expect(window.location.pathname).toBe('/administrar/salon');
     expect(root.querySelectorAll('.salon-table').length).toBe(3);
     panel.orders.set([activeOrder]);
     fixture.detectChanges();
@@ -100,6 +105,48 @@ describe('Local operations panel', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     expect(root.querySelector<HTMLInputElement>('dialog input[name="table"]')?.value).toBe('M3');
+    fixture.destroy();
+  });
+
+  it('lets a mesero take a table order and open the customer menu without administrative access', async () => {
+    configure('waiter');
+    window.history.replaceState(null, '', '/administrar');
+    const fixture = TestBed.createComponent(OperationsPanel);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    await fixture.whenStable(); fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    expect(root.querySelector('.topbar-account')?.textContent).toContain('Mesero');
+    const menu = root.querySelector<HTMLAnchorElement>('.public-menu-link');
+    expect(menu?.getAttribute('href')).toBe('/');
+    expect(menu?.target).toBe('_blank');
+    expect(root.querySelector('a[href="/administrar/configuracion/equipo"]')).toBeNull();
+    expect(root.querySelector('a[href="/administrar/caja/turno"]')).toBeNull();
+    expect(root.querySelector('.salon-tools button[aria-haspopup="dialog"]')).toBeNull();
+    expect(fixture.componentInstance.canOpenView('kitchen')).toBeTrue();
+    expect(fixture.componentInstance.canPrepare()).toBeFalse();
+    root.querySelector<HTMLButtonElement>('[aria-label="Nuevo pedido en mesa M3"]')!.click();
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    expect(root.querySelector<HTMLInputElement>('dialog input[name="table"]')?.value).toBe('M3');
+    fixture.destroy();
+  });
+
+  it('redirects the former orders screen to Cocina and lets a mesero create pickup orders there', async () => {
+    configure('waiter');
+    window.history.replaceState(null, '', '/administrar/pedidos');
+    const fixture = TestBed.createComponent(OperationsPanel);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const root: HTMLElement = fixture.nativeElement;
+    expect(window.location.pathname).toBe('/administrar/cocina');
+    expect(root.querySelector('a[href="/administrar/pedidos"]')).toBeNull();
+    expect(root.querySelector('a[href="/administrar/pedidos/historial"]')).not.toBeNull();
+    const button = Array.from(root.querySelectorAll('button')).find(button => button.textContent?.includes('+ Nuevo pedido'))!;
+    button.click(); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    expect(root.querySelector<HTMLSelectElement>('dialog select[name="method"]')?.value).toBe('pickup');
+    fixture.componentInstance.orders.set([
+      { ...activeOrder, method: 'table' }, { ...activeOrder, id: 18, method: 'delivery' }, { ...activeOrder, id: 19, method: 'pickup' },
+    ]);
+    fixture.componentInstance.methodFilter.set('delivery');
+    expect(fixture.componentInstance.filteredOrders().map(order => order.id)).toEqual([18]);
     fixture.destroy();
   });
 
@@ -115,8 +162,8 @@ describe('Local operations panel', () => {
     root.querySelector<HTMLButtonElement>('.navigation-trigger')!.click();
     const dialog = root.querySelector<HTMLDialogElement>('.mobile-navigation')!;
     expect(dialog.matches(':modal')).toBeTrue();
-    expect(dialog.querySelector('[aria-current="page"]')?.getAttribute('href')).toBe('/administrar#cocina');
-    expect(dialog.querySelector('[href="/administrar#equipo"]')).toBeNull();
+    expect(dialog.querySelector('[aria-current="page"]')?.getAttribute('href')).toBe('/administrar/cocina');
+    expect(dialog.querySelector('[href="/administrar/configuracion/equipo"]')).toBeNull();
     dialog.querySelector<HTMLButtonElement>('[aria-label="Cerrar menú"]')!.click();
     expect(dialog.open).toBeFalse();
     fixture.destroy();
@@ -152,7 +199,8 @@ describe('Local operations panel', () => {
     await fixture.whenStable();
 
     for (const [view, heading] of [
-      ['history', 'Historial de pedidos'], ['users', 'Equipo y accesos'], ['reports', 'Reportes'],
+      ['history', 'Historial'], ['users', 'Equipo y permisos'], ['reports', 'Resumen general'],
+      ['report-demand', 'Demanda de platos'],
     ] as const) {
       await fixture.componentInstance.selectView(view);
       fixture.detectChanges();
@@ -162,6 +210,7 @@ describe('Local operations panel', () => {
     }
     expect(local.history).toHaveBeenCalled();
     expect(local.users).toHaveBeenCalled();
+    expect(local.workflow).toHaveBeenCalledWith(jasmine.stringMatching('/reports/sales'));
     expect(local.dishDemand).toHaveBeenCalled();
     fixture.destroy();
   });
@@ -242,8 +291,8 @@ describe('Local operations panel', () => {
     await fixture.componentInstance.selectView('catalog');
     fixture.detectChanges();
     expect(fixture.componentInstance.view()).toBe('kitchen');
-    expect(window.location.hash).toBe('#cocina');
-    expect(fixture.nativeElement.querySelector('a[aria-label="Carta digital"]')).toBeNull();
+    expect(window.location.pathname).toBe('/administrar/cocina');
+    expect(fixture.nativeElement.querySelector('a[aria-label="Platos y bebidas"]')).toBeNull();
     expect(fixture.debugElement.query(By.directive(AdminPanel))).toBeNull();
     expect(local.catalog).not.toHaveBeenCalled();
     fixture.destroy();
@@ -251,7 +300,7 @@ describe('Local operations panel', () => {
 
   it('loads a direct history link and follows browser history between modules', async () => {
     const { local } = configure('admin');
-    window.history.replaceState(null, '', '/administrar#historial');
+    window.history.replaceState(null, '', '/administrar/pedidos/historial');
     const fixture = TestBed.createComponent(OperationsPanel);
     fixture.detectChanges();
     await fixture.whenStable();
@@ -259,14 +308,12 @@ describe('Local operations panel', () => {
     expect(fixture.componentInstance.view()).toBe('history');
     expect(local.history).toHaveBeenCalledTimes(1);
 
-    const teamLink = fixture.nativeElement.querySelector('a[aria-label="Equipo"]') as HTMLAnchorElement;
-    expect(teamLink.getAttribute('href')).toBe('/administrar#equipo');
+    const teamLink = fixture.nativeElement.querySelector('a[aria-label="Equipo y permisos"]') as HTMLAnchorElement;
+    expect(teamLink.getAttribute('href')).toBe('/administrar/configuracion/equipo');
     const changed = () => new Promise<void>((resolve) =>
-      window.addEventListener('hashchange', () => resolve(), { once: true }),
+      window.addEventListener('popstate', () => resolve(), { once: true }),
     );
-    const teamOpened = changed();
     teamLink.click();
-    await teamOpened;
     await fixture.whenStable();
     expect(fixture.componentInstance.view()).toBe('users');
     expect(local.users).toHaveBeenCalledTimes(1);
@@ -275,7 +322,7 @@ describe('Local operations panel', () => {
     window.history.back();
     await historyRestored;
     await fixture.whenStable();
-    expect(window.location.hash).toBe('#historial');
+    expect(window.location.pathname).toBe('/administrar/pedidos/historial');
     expect(fixture.componentInstance.view()).toBe('history');
     expect(local.history).toHaveBeenCalledTimes(2);
     fixture.destroy();
@@ -367,4 +414,29 @@ describe('Local operations panel', () => {
     expect(window.sessionStorage.getItem(soundKey)).toBe('1');
     fixture.destroy();
   });
+  it('requires a final review before cancelling an order', async () => {
+    const { local } = configure('admin');
+    const changeStatus = jasmine.createSpy('changeStatus').and.resolveTo({ order: { ...activeOrder, status: 'cancelled' } });
+    Object.assign(local, { changeStatus });
+    const fixture = TestBed.createComponent(OperationsPanel);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const panel = fixture.componentInstance;
+    panel.requestCancellation(activeOrder);
+    panel.cancellationReason = 'Solicitado por el cliente';
+    fixture.detectChanges();
+    const confirm = () => fixture.nativeElement.querySelector('dialog.cancel-dialog button[type="submit"]') as HTMLButtonElement;
+    confirm().click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(changeStatus).not.toHaveBeenCalled();
+    expect(confirm().textContent).toContain('Confirmar cancelación');
+    confirm().click();
+    await fixture.whenStable();
+    expect(changeStatus).toHaveBeenCalledTimes(1);
+    expect(changeStatus).toHaveBeenCalledWith(activeOrder, 'cancelled', 'Solicitado por el cliente');
+    fixture.destroy();
+  });
+
 });

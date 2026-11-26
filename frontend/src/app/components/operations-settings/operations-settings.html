@@ -1,0 +1,68 @@
+<section class="workflows">
+  @if (error()) { <p class="workflow-error" role="alert">{{ error() }} <button type="button" [disabled]="busy()" (click)="save()">Reintentar</button></p> }
+  @if (notice()) { <p class="workflow-notice" role="status">{{ notice() }}</p> }
+  @if (data(); as settings) {
+    @if (page() === 'settings') {
+      <section class="workflow-card">
+        <h2>Cocina</h2>
+        <p>Todos los platos y bebidas se preparan en Cocina. Los pedidos llegan en una sola comanda, sin separarse por áreas.</p>
+        <p>La impresora de Cocina se configura en Configuración → Impresoras.</p>
+      </section>
+    } @else if (page() === 'settings-methods') {
+      <section class="workflow-card">
+        <div class="workflow-section-heading"><h2>Medios de pago</h2>
+          <button type="button" class="ops-primary" [disabled]="busy()" (click)="method = newMethod(); editingMethod = false; openEditor('methods')">+ Nuevo medio de pago</button></div>
+        <div class="workflow-table" tabindex="0" role="region" aria-label="Tabla de registros"><table><thead><tr><th>Medio</th><th>Efectivo</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
+          @for (entry of settings.methods; track entry.code) {
+            <tr><th scope="row">{{ entry.name }}</th><td>{{ entry.cash ? 'Sí' : 'No' }}</td><td><span class="ui-state" [class.muted]="!entry.active">{{ entry.active ? 'Activo' : 'Inactivo' }}</span></td><td>
+              <button type="button" [disabled]="busy()" [attr.aria-label]="'Editar medio de pago ' + entry.name" (click)="method = {code: entry.code, name: entry.name, cash: entry.cash, active: entry.active}; editingMethod = true; openEditor('methods')">Editar</button><button class="danger-action" type="button" [disabled]="busy()" (click)="removeRecord('methods', entry.code, entry.name)">Eliminar</button>
+            </td></tr>
+          } @empty { <tr><td colspan="4">Aún no hay medios de pago.</td></tr> }
+        </tbody></table></div>
+      </section>
+    } @else {
+      <section class="workflow-card">
+        <div class="workflow-section-heading"><h2>Impresora de Cocina</h2>
+          <button type="button" class="ops-primary" [disabled]="busy()" (click)="printer = {code: '', printer: ''}; openEditor('printers')">Configurar impresora</button></div>
+        <div class="workflow-table" tabindex="0" role="region" aria-label="Tabla de registros"><table><thead><tr><th>Centro</th><th>Impresora</th><th>Acciones</th></tr></thead><tbody>
+          @for (entry of settings.centers; track entry.code) {
+            <tr><th scope="row">{{ entry.name }}</th><td>{{ entry.printer || 'Sin configurar' }}</td><td>
+              <button type="button" [disabled]="busy()" (click)="selectPrinter(entry.code); openEditor('printers')">Editar</button><button class="danger-action" type="button" [disabled]="busy()" (click)="removeRecord('printers', entry.code, entry.name)">Eliminar</button>
+            </td></tr>
+          } @empty { <tr><td colspan="3">Configura un centro de preparación.</td></tr> }
+        </tbody></table></div>
+      </section>
+    }
+    @if (editor()) {
+      <app-record-dialog [title]="editorTitle()" [busy]="busy()" (closed)="editor.set(null)">
+        @if (error()) { <p class="workflow-error" role="alert">{{ error() }}</p> }
+        <fieldset class="record-form-fields" [disabled]="busy()">
+        @switch (editor()) {
+          @case ('methods') {
+<form class="workflow-card" #methodForm="ngForm" (ngSubmit)="methodForm.valid && save('methods')">
+        <label>Código <input name="code" required pattern="[a-z0-9_-]+" maxlength="32" [readOnly]="editingMethod" [(ngModel)]="method.code"></label>
+        <label>Nombre <input name="name" required maxlength="80" [(ngModel)]="method.name"></label>
+        <label class="workflow-check"><input name="cash" type="checkbox" [(ngModel)]="method.cash"> Suma al efectivo del turno</label>
+        <label class="workflow-check"><input name="active" type="checkbox" [(ngModel)]="method.active"> Disponible en Caja</label>
+        <button class="ops-primary" [disabled]="busy() || methodForm.invalid">Guardar medio de pago</button>
+      </form>
+          }
+          @case ('printers') {
+<form class="workflow-card" #printerForm="ngForm" (ngSubmit)="printerForm.valid && save('printers')">
+        <p>Escribe el nombre exacto de la impresora instalada en la computadora que ejecuta QZ Tray.</p>
+        <label>Centro de preparación
+          <select name="center" [ngModel]="printer.code" (ngModelChange)="selectPrinter($event)" required>
+            <option value="">Selecciona</option>
+            @for (entry of settings.centers; track entry.code) { <option [value]="entry.code">{{ entry.name }}</option> }
+          </select>
+        </label>
+        <label>Nombre de la impresora <input name="printer" maxlength="160" [(ngModel)]="printer.printer"></label>
+        <button class="ops-primary" [disabled]="busy() || printerForm.invalid">Guardar impresora</button>
+      </form>
+          }
+        }
+        </fieldset>
+      </app-record-dialog>
+    }
+  } @else if (busy()) { <p role="status">Cargando configuración…</p> }
+</section>

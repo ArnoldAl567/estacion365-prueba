@@ -3,6 +3,7 @@ import { Component, computed, ElementRef, HostListener, inject, input, OnInit, o
 import { FormsModule } from '@angular/forms';
 import { isActiveOrderStatus, ORDER_STATUSES, SalonLayout, StaffOrder } from '../../models/operations.models';
 import { LocalOperationsApi, OperationsError } from '../../services/local-operations-api.service';
+import { RemovalConfirmation } from '../../services/removal-confirmation.service';
 
 interface SalonTable {
   id: string | null;
@@ -20,6 +21,8 @@ interface SalonTable {
 export class OperationsSalon implements OnInit {
   readonly orders = input.required<StaffOrder[]>();
   readonly online = input(false);
+  readonly canConfigure = input(false);
+  readonly settingsMode = input(false);
   readonly newOrder = output<{ label: string; id: string | null }>();
   readonly orderDetails = output<StaffOrder>();
   readonly editOrder = output<StaffOrder>();
@@ -34,6 +37,7 @@ export class OperationsSalon implements OnInit {
   readonly editError = signal('');
   readonly outdated = signal(false);
   private readonly api = inject(LocalOperationsApi);
+  private readonly confirmation = inject(RemovalConfirmation);
   private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('layoutDialog');
   private readonly heading = viewChild.required<ElementRef<HTMLHeadingElement>>('layoutHeading');
   private readonly keepEditing = viewChild<ElementRef<HTMLButtonElement>>('keepEditing');
@@ -41,7 +45,8 @@ export class OperationsSalon implements OnInit {
   readonly zones = computed(() => {
     const byTable = new Map<string, SalonTable>();
     for (const order of this.orders()) {
-      if (order.method !== 'table' || !isActiveOrderStatus(order.status)) continue;
+      if (order.method !== 'table' || order.tableClosedAt
+        || !(isActiveOrderStatus(order.status) || order.status === 'delivered')) continue;
       const raw = order.tableLabel?.trim() ?? '';
       const key = this.tableKey(raw);
       const table = byTable.get(key) ?? { id: null, label: raw || 'Sin mesa asignada', orders: [], assignable: !!raw };
@@ -130,6 +135,18 @@ export class OperationsSalon implements OnInit {
 
   addZone(layout: SalonLayout): void {
     layout.zones.push({ id: crypto.randomUUID(), name: '', tables: [] });
+  }
+
+  async removeZone(layout: SalonLayout, zone: SalonLayout['zones'][number]): Promise<void> {
+    if (this.saving() || !(await this.confirmation.ask('Quitar salón', 'Se quitará el salón «' + (zone.name || 'Sin nombre') + '» y sus ' + zone.tables.length + ' mesas del plano al guardar los cambios.', 'Quitar salón'))) return;
+    const index = layout.zones.indexOf(zone);
+    if (index >= 0) layout.zones.splice(index, 1);
+  }
+
+  async removeTable(zone: SalonLayout['zones'][number], table: SalonLayout['zones'][number]['tables'][number]): Promise<void> {
+    if (this.saving() || !(await this.confirmation.ask('Quitar mesa', 'Se quitará la mesa «' + table.label + '» del plano al guardar los cambios.', 'Quitar mesa'))) return;
+    const index = zone.tables.indexOf(table);
+    if (index >= 0) zone.tables.splice(index, 1);
   }
 
   addTable(layout: SalonLayout, zone: SalonLayout['zones'][number]): void {

@@ -1,5 +1,5 @@
 app-operations-theme { display: block; }
-html:has(app-operations-panel dialog:is(.mobile-navigation, .cancel-dialog, .order-detail)[open]) { overflow: hidden; }
+html:has(app-operations-panel dialog[open]) { overflow: hidden; }
 
 app-operations-panel {
   --ui-canvas: #f3f6f8;
@@ -129,6 +129,129 @@ app-operations-reports .report-ranking .dish-bar { height: 6px; background: #e8e
 app-operations-reports .report-ranking .dish-bar span { background: linear-gradient(90deg, #247256, #518b9b); }
 app-operations-reports .report-summary strong { color: var(--ui-accent); font-variant-numeric: tabular-nums; }
 
+.ops-layout .workflows { display: grid; gap: 18px; min-width: 0; }
+.ops-layout :is(.workflow-tabs, .workflow-inline, .workflow-pagination, .workflow-chip-list) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ops-layout .workflow-tabs { margin-block-end: 12px; }
+.ops-layout :is(.workflow-card button, .workflow-tabs a, .workflow-tabs button) {
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 1px solid var(--ui-control);
+  border-radius: var(--ui-input-radius);
+  color: var(--ui-ink);
+  background: var(--ui-white);
+  font: inherit;
+  font-size: .87rem;
+  font-weight: 650;
+  text-decoration: none;
+  cursor: pointer;
+}
+.ops-layout :is(.workflow-tabs button[aria-pressed='true'], .workflow-card button[type='submit'], .workflow-card button.ops-primary) {
+  border-color: var(--ui-accent);
+  color: white;
+  background: var(--ui-accent);
+}
+.ops-layout :is(.workflow-card button, .workflow-tabs button):disabled { opacity: .58; cursor: default; }
+.ops-layout :is(.workflow-card button, .workflow-tabs button, .workflow-tabs a):hover:not(:disabled) { box-shadow: 0 0 0 2px #18704e26; }
+.ops-layout .workflow-card {
+  display: grid;
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  padding: clamp(14px, 2vw, 24px);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--ui-radius);
+  background: var(--ui-white);
+  box-shadow: var(--ui-panel-shadow);
+}
+.ops-layout .workflow-card > :is(button, .workflow-pagination) { justify-self: start; }
+.ops-layout .workflow-card h2 { margin: 0; font-size: 1.17rem; }
+.ops-layout :is(.workflow-card p, .workflow-period) { margin: 0; color: var(--ui-muted); line-height: 1.5; }
+.ops-layout :is(.workflow-grid, .workflow-columns, .workflow-line, .workflow-metrics, .workflow-filters) {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  min-width: 0;
+}
+.ops-layout .workflow-metrics { margin: 0; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); }
+.ops-layout .workflow-metrics > * { display: grid; gap: 4px; border-radius: 10px; padding: 12px; background: #edf5f1; }
+.ops-layout .workflow-metrics :is(dd, strong) { margin: 0; color: var(--ui-accent); font-size: clamp(1.1rem, 2vw, 1.6rem); font-weight: 750; }
+.ops-layout :is(.workflow-form, .workflow-card label) { display: grid; gap: 7px; min-width: 0; }
+.ops-layout .workflow-form { gap: 12px; justify-items: start; }
+.ops-layout .workflow-form label { width: min(100%, 420px); }
+.ops-layout .workflow-card label { font-size: .86rem; font-weight: 650; }
+.ops-layout .workflow-card :is(input, select):not([type='checkbox']) {
+  width: 100%;
+  min-height: 44px;
+  min-width: 0;
+  padding: 8px 11px;
+  border: 1px solid var(--ui-control);
+  border-radius: var(--ui-input-radius);
+  background: white;
+  color: var(--ui-ink);
+  font: inherit;
+  font-size: 1rem;
+}
+.ops-layout .workflow-card :is(.workflow-check, .workflow-line, .workflow-filters) { align-items: end; }
+.ops-layout label.workflow-check { display: flex; align-items: center; min-height: 44px; }
+.ops-layout .workflow-check input { width: 18px; height: 18px; accent-color: var(--ui-accent); }
+.ops-layout .workflow-line { grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr)); padding-block: 10px; border-bottom: 1px solid var(--ui-line); }
+.ops-layout .workflow-table { overflow-x: auto; }
+.ops-layout .workflow-table table { border-collapse: collapse; width: 100%; text-align: start; font-size: .88rem; }
+.ops-layout .workflow-table :is(th, td) { text-align: start; padding: 11px 12px; border-bottom: 1px solid var(--ui-line); }
+.ops-layout .workflow-table thead { background: #eef4f7; }
+.ops-layout .workflow-table td .workflow-inline { min-width: 145px; }
+.ops-layout .workflow-list { padding: 0; margin: 0; list-style: none; }
+.ops-layout .workflow-list li { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--ui-line); }
+.ops-layout :is(.workflow-error, .workflow-notice, .workflow-badge, .workflow-low) {
+  padding: 9px 12px;
+  border-radius: var(--ui-input-radius);
+  margin: 0;
+  color: var(--ui-accent-hover);
+  background: var(--ui-accent-soft);
+}
+.ops-layout .workflow-error { color: var(--ui-danger); background: var(--ui-danger-soft); }
+.ops-layout .workflow-low { display: inline-block; color: var(--ui-warning); background: var(--ui-warning-soft); }
+.ops-layout .workflow-badge { display: inline-block; min-width: 110px; }
+.ops-layout .menu-edit-dialog {
+  width: min(460px, calc(100% - 28px));
+  max-height: calc(100dvh - 30px);
+  padding: 0;
+  border: 0;
+  border-radius: var(--ui-radius);
+  color: var(--ui-ink);
+}
+.ops-layout .menu-edit-dialog::backdrop { background: #10283a9c; }
+
+.ops-layout .record-form-fields {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: 16px;
+}
+.ops-layout .workflow-section-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
+.ops-layout app-record-dialog :is(.workflow-card, .ops-card, .editor-card) { padding: 0; box-shadow: none; border: 0; background: transparent; }
+.ops-layout app-record-dialog .workflow-form { justify-items: stretch; }
+.ops-layout app-record-dialog .workflow-form label { width: 100%; }
+.ops-layout app-record-dialog .staff-editor { width: 100%; min-width: 0; }
+.ops-layout app-record-dialog .staff-editor form { padding: 0; }
+.ops-layout app-record-dialog .staff-editor .record-form-fields { display: block; }
+.ops-layout app-record-dialog .staff-editor label { display: block; margin: 0 0 7px; }
+.ops-layout app-record-dialog .staff-editor :is(input, select) { margin: 0 0 18px; }
+.ops-layout app-record-dialog .workflow-error { margin-bottom: 16px; }
+
+@media (max-width: 540px) {
+  .ops-layout .workflows { gap: 12px; }
+  .ops-layout .workflow-table :is(th, td) { padding: 9px 10px; }
+  .ops-layout .workflow-card { box-shadow: none; }
+}
+
 
 
 
@@ -195,3 +318,8 @@ app-operations-panel .ui-spinner {
   app-admin-panel .admin-page.embedded .catalog-toolbar { grid-template-columns: minmax(0, 1fr); }
   app-admin-panel .admin-page.embedded .catalog-toolbar .create-button { grid-area: 3 / 1; }
 }
+
+
+.ops-layout .public-menu-link svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; }
+
+.ops-layout .kitchen-tools { margin-bottom: 20px; }

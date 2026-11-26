@@ -1,0 +1,178 @@
+/* Salon and production use restrained status color and clear actions. */
+.ops-layout app-operations-salon .salon-tools { margin-bottom: 26px; gap: 12px; }
+.ops-layout app-operations-salon .occupancy-summary { gap: 10px; }
+.ops-layout app-operations-salon .occupancy-summary > div { border-radius: 10px; background: #d6f5e5; padding: 11px 15px; gap: 12px; border-color: #84cdaa; }
+.ops-layout app-operations-salon .occupancy-summary > div + div { background: #ffe2d9; border-color: #e8a28c; }
+.ops-layout app-operations-salon .table-grid { gap: 18px; }
+.ops-layout app-operations-salon .salon-table { min-height: 190px; padding: 20px; gap: 14px; background: linear-gradient(135deg, #d8f8e8, #bcebd4); border: 1px solid #78c8a1; border-top: 4px solid #22976a; box-shadow: 0 4px 16px #16704e12; }
+.ops-layout app-operations-salon .salon-table.occupied { border-color: #e79c85; border-top-color: #cb6343; background: linear-gradient(135deg, #ffe6dc, #ffd0bf); box-shadow: 0 4px 16px #9c402312; }
+.ops-layout app-operations-salon .salon-table.waiting { border-color: #a8bac6; border-top-color: #708b9b; background: linear-gradient(135deg, #edf2f6, #dce6ed); box-shadow: 0 4px 16px #3653610c; }
+.ops-layout app-operations-salon .salon-table h3 { font-size: 24px; letter-spacing: -.04em; }
+.ops-layout app-operations-salon .table-state { font-size: 11px; padding: 6px 10px; border-radius: 7px; background: #176647; color: #fff; }
+.ops-layout app-operations-salon .occupied .table-state { color: #fff; background: #9b3d26; }
+.ops-layout app-operations-salon .waiting .table-state { color: #fff; background: #486170; }
+.ops-layout app-operations-salon .table-time { font-size: 11px; color: #63483f; }
+.ops-layout app-operations-salon .table-action { width: 100%; border-radius: 9px; color: #fff; background: #176647; border-color: #176647; font-size: 12px; }
+.ops-layout app-operations-salon .salon-table .table-action:hover:not(:disabled) { color: #fff; background: #104e36; border-color: #104e36; }
+.ops-layout app-operations-salon .occupied .table-action { color: #813620; background: #fff6f1; border-color: #da987f; }
+.ops-layout app-operations-salon .salon-table.occupied .table-action:hover:not(:disabled) { color: #702b19; background: #ffece2; border-color: #b76c50; }
+.ops-layout app-operations-salon .waiting .table-action { color: #354f5d; background: #edf2f6; border-color: #a8bac6; }
+.ops-layout app-operations-salon .table-orders { font-size: 12px; }
+.ops-layout app-operations-salon h2 { font-size: 15px; font-weight: 700; margin-bottom: 15px; }
+.ops-layout .ops-stats { gap: 16px; margin-bottom: 28px; }
+.ops-layout .metric { position: relative; overflow: hidden; padding: 22px; border: 1px solid var(--ui-line); background: #fff; border-radius: 16px; min-height: 143px; box-shadow: var(--ui-panel-shadow); }
+.ops-layout .metric strong { color: #183c45; font-size: 35px; line-height: 1.2; font-weight: 700; letter-spacing: -.055em; }
+.ops-layout .metric-heading { font-size: 12px; color: #526d79; }
+.ops-layout .metric small { color: #758994; font-size: 11px; }
+.ops-layout .metric.today { background: #eaf4ee; border-color: #d2e6d9; }
+.ops-layout .metric.today :is(strong, .metric-heading, svg) { color: #183c45; }
+.ops-layout .metric.today small { color: #385e4f; }
+.ops-layout app-operations-kitchen .kitchen-board { gap: 18px; }
+.ops-layout app-operations-kitchen .kitchen-lane { padding: 16px; border: 1px solid #e3e7e4; background: #f6f4ed; }
+.ops-layout app-operations-kitchen .kitchen-lane.preparing { background: #eef4f8; border-color: #dce7ee; }
+.ops-layout app-operations-kitchen .kitchen-lane.ready { background: #edf5ef; border-color: #dbe9df; }
+.ops-layout app-operations-kitchen .lane-heading { margin: 1px 2px 17px; }
+.ops-layout app-operations-kitchen .lane-heading h2 { font-size: 13px; }
+.ops-layout app-operations-kitchen .kitchen-ticket { border-radius: 12px; padding: 18px; box-shadow: 0 4px 12px #152e3d06; }
+.ops-layout app-operations-kitchen .ticket-timer { font-size: 11px; padding: 5px 9px; border: 1px solid #e3eaf0; background: #f5f8fa; font-weight: 650; }
+.ops-layout app-operations-kitchen .ticket-lines { margin-block: 15px; }
+.ops-layout app-operations-kitchen .ticket-actions { gap: 9px; }
+
+/* The catalog inherits staff styling only when embedded in this workspace. */
+.ops-layout .admin-page.embedded :is(.stat-card, .catalog-panel, .price-card) { border-color: var(--ui-line); border-radius: var(--ui-radius); box-shadow: var(--ui-panel-shadow); }
+.ops-layout .admin-page.embedded .stat-card { padding: 22px 24px; }
+.ops-layout .admin-page.embedded .stat-card strong { font-family: var(--font-body); font-size: 32px; letter-spacing: -.045em; }
+.ops-layout .admin-page.embedded .catalog-header { padding: 24px; }
+.ops-layout .admin-page.embedded .catalog-toolbar { gap: 15px; }
+.ops-layout .admin-page.embedded .filter-tabs { padding: 5px; gap: 3px; border-radius: 10px; background: #eff4f6; }
+.ops-layout .admin-page.embedded .filter-tabs button { border-radius: 7px; color: #5c7581; font-family: var(--font-body); font-size: 12px; }
+.ops-layout .admin-page.embedded .filter-tabs button.active { background: white; color: #1d7053; box-shadow: 0 2px 5px #1837470b; }
+.ops-layout .admin-page.embedded .item-row { padding: 18px 24px; gap: 16px; border-color: #e8eef2; }
+.ops-layout .admin-page.embedded .item-row h3 { font-family: var(--font-body); font-size: 15px; text-transform: none; font-weight: 650; letter-spacing: -.02em; }
+.ops-layout .admin-page.embedded .item-row img { border-radius: 12px; }
+.ops-layout .admin-page.embedded .item-category { font-size: 10px; color: #4d8296; letter-spacing: .07em; }
+.ops-layout .admin-page.embedded .item-actions button { min-height: 36px; font-family: var(--font-body); font-size: 12px; border-radius: 8px; padding: 7px 12px; }
+.ops-layout .admin-page.embedded .price-card { padding: 22px; }
+.ops-layout .admin-page.embedded .editor-fields { gap: 20px; }
+
+/* Analytics, feedback and team views complete the same visual language. */
+.ops-layout .analytics { gap: 22px; --analytics-text: var(--ui-ink); --analytics-muted: var(--ui-muted); --analytics-line: var(--ui-line); }
+.ops-layout .analytics-filter { padding: 22px 24px; gap: 18px; }
+.ops-layout .analytics .filter-fields { gap: 16px; }
+.ops-layout .analytics .date-shortcuts { background: #edf3f6; border-radius: 9px; }
+.ops-layout .analytics .date-shortcuts button { border: 0; min-height: 32px; padding: 5px 12px; box-shadow: none; font-size: 12px; }
+.ops-layout .analytics .date-shortcuts button[aria-pressed='true'] { background: white; color: #17694e; box-shadow: 0 1px 5px #203e5012; }
+.ops-layout .analytics .metric-card { padding: 23px; gap: 11px; min-height: 145px; }
+.ops-layout .analytics .metric-card > strong { font-size: clamp(23px, 2.25vw, 32px); font-weight: 700; }
+.ops-layout .analytics .primary-metric { background: #e9f4ee; border-color: #d0e5d7; }
+.ops-layout .analytics .metric-card > span, .ops-layout .analytics .metric-card > small { font-size: 12px; }
+.ops-layout .analytics .sales-ranking, .ops-layout .analytics .chart-panel { padding: 24px; }
+.ops-layout .analytics .chart-panel .card-heading { padding: 0; }
+.ops-layout .analytics .sales-ranking li { min-height: 58px; font-size: 13px; }
+.ops-layout .analytics .sales-table-scroll { border: 0; border-radius: 0 0 17px 17px; }
+.ops-layout .workflow-metrics { gap: 16px; }
+.ops-layout .workflow-metrics > * { border: 1px solid #dce9e2; border-radius: 12px; padding: 20px; gap: 10px; background: #f3f9f5; }
+.ops-layout .workflow-metrics :is(dt, span) { color: #5b766a; font-size: 12px; }
+.ops-layout .workflow-metrics :is(dd, strong) { font-size: 27px; font-weight: 700; letter-spacing: -.04em; }
+.ops-layout :is(.ops-alert, .workflow-notice, .workflow-error, .report-feedback) { border-radius: 12px; padding: 14px 18px; font-size: 13px; line-height: 1.65; border: 1px solid #d0e5d9; }
+.ops-layout :is(.ops-alert.error, .workflow-error, .report-feedback.error) { border-color: #efd0d6; background: #fff2f4; color: #a33346; }
+.ops-layout .workflow-period { font-size: 12px; color: #708591; }
+.ops-layout .staff-row { padding: 22px 24px; gap: 16px; border-color: #e6edf2; }
+.ops-layout .staff-name h3 { font-size: 15px; font-weight: 650; }
+.ops-layout .staff-name > span { font-size: 12px; }
+.ops-layout .staff-actions button { min-height: 36px; font-size: 12px; border-radius: 8px; }
+.ops-layout :is(.permission-summary, .report-empty, .ops-empty) { border-radius: 14px; background: #f8fafc; color: #647e8c; }
+.ops-layout .ops-empty { padding: 48px 24px; }
+
+/* Existing native dialogs retain focus handling and all current actions. */
+.ops-layout :is(.order-editor, .layout-dialog, .cancel-dialog, .menu-edit-dialog), app-operations-panel .order-detail { border-radius: 20px; border: 1px solid #d9e5eb; box-shadow: 0 30px 100px #102b3d38; }
+app-operations-panel dialog::backdrop { background: #102c3db3; backdrop-filter: blur(4px); }
+.ops-layout :is(.order-editor > header, .layout-header), app-operations-panel .order-detail > header { padding: 22px 28px; background: #fff; border-bottom: 1px solid #e1e9ee; }
+.ops-layout :is(.order-editor, .layout-dialog) h2, app-operations-panel .order-detail h2 { font-size: 21px; font-weight: 700; letter-spacing: -.03em; }
+.ops-layout :is(.editor-content, .layout-content) { padding: 26px 28px; background: #f5f8fa; }
+.ops-layout .editor-section { padding: 24px; border: 1px solid #dde8ed; border-radius: 14px; background: white; }
+.ops-layout .editor-section legend { padding-inline: 8px; font-size: 13px; color: #375f6e; font-weight: 700; }
+.ops-layout .order-editor .fields { gap: 20px; }
+.ops-layout .order-editor .editor-line { padding: 20px; border-radius: 12px; border-color: #e1e9ee; background: #fbfdfe; }
+.ops-layout :is(.order-editor > footer, .layout-footer) { padding: 18px 28px; background: #fff; border-color: #e1e9ee; }
+.ops-layout .menu-edit-dialog { width: min(540px, calc(100% - 24px)); }
+.ops-layout .menu-edit-dialog .workflow-card { border: 0; border-radius: 0; padding: 28px; gap: 22px; box-shadow: none; }
+.ops-layout .menu-edit-dialog .workflow-inline { flex-direction: row-reverse; justify-content: flex-start; padding-top: 16px; border-top: 1px solid var(--ui-line); }
+.ops-layout .cancel-dialog form { padding: 28px; gap: 20px; }
+.ops-layout .zone-editor { padding: 20px; background: white; border-color: #dde8ed; border-radius: 14px; gap: 20px; }
+.ops-layout .table-editor { padding: 12px; background: #f6f9fb; border: 1px solid #e4ebef; border-radius: 10px; }
+
+app-operations-panel .ops-access { background: #f5f8fa; }
+app-operations-panel .access-story { background: radial-gradient(ellipse at bottom right, #245c55 0, transparent 65%), #102d3d; }
+app-operations-panel .access-copy h1 { font-size: clamp(34px, 4vw, 60px); letter-spacing: -.05em; font-weight: 650; }
+app-operations-panel .access-copy h1 em { display: block; color: #b9dfbe; }
+app-operations-panel .access-copy p { color: #c5d8dd; font-size: 16px; line-height: 1.8; }
+app-operations-panel .access-form .login-box { width: min(100%, 460px); padding: 34px; background: white; border: 1px solid #e0e9ee; border-radius: 22px; box-shadow: 0 15px 50px #1a394b08; }
+app-operations-panel .login-box .eyebrow { font-size: 10px; letter-spacing: .1em; color: #4f8c77; }
+app-operations-panel .login-box h2 { font-size: 29px; font-weight: 700; letter-spacing: -.04em; }
+app-operations-panel .login-box > p { font-size: 14px; line-height: 1.7; color: #657c89; }
+app-operations-panel .login-box label { font-size: 12px; font-weight: 650; color: #476373; }
+app-operations-panel .login-box .ops-primary { min-height: 46px; border-radius: 10px; font-size: 14px; }
+
+@media (max-width: 1200px) {
+  .ops-layout .ops-main { padding-inline: 24px; }
+  .ops-layout .ops-heading { align-items: flex-start; }
+  .ops-layout .heading-actions { flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+  .ops-layout .analytics .chart-card.has-ranking { grid-template-columns: minmax(200px, .9fr) minmax(0, 1.6fr); }
+}
+@media (max-width: 1050px) {
+  app-operations-panel .ops-layout { display: block; }
+  .ops-layout .ops-topbar { min-height: 68px; padding: 12px 24px; }
+  .ops-layout .ops-main { padding: 28px 24px; }
+}
+@media (max-width: 720px) {
+  app-operations-panel { --ui-input-font-size: 16px; }
+  .ops-layout app-record-dialog .record-master-form { grid-template-columns: minmax(0, 1fr); }
+  .ops-layout .ops-topbar { padding: 12px 16px; }
+  .ops-layout .ops-main { padding: 24px 16px; }
+  .ops-layout .ops-heading { margin-bottom: 23px; gap: 16px; }
+  .ops-layout .ops-heading h1 { font-size: 28px; }
+  .ops-layout .ops-heading p { font-size: 13px; }
+  .ops-layout .date-eyebrow { font-size: 9px; }
+  .ops-layout .heading-actions { justify-content: flex-start; }
+  .ops-layout .workflow-card { padding: 18px; gap: 18px; }
+  .ops-layout :is(.workflow-table, .sales-table) :is(th, td) { padding: 14px; }
+  .ops-layout .workflow-table table { min-width: 520px; }
+  .ops-layout .workflow-table table:has(thead th:nth-child(2):last-child) { min-width: 310px; }
+  .ops-layout .workflow-tabs { gap: 8px; }
+  .ops-layout .workflow-tabs > .ops-primary { margin-left: 0; }
+  .ops-layout .workflow-section-heading { align-items: flex-start; }
+  .ops-layout .workflow-section-heading button { width: 100%; }
+  .ops-layout :is(.card-title, .analytics .card-heading) { padding: 20px 18px; }
+  .ops-layout .ops-table td { padding-block: 10px; }
+  .ops-layout .ops-stats { gap: 10px; }
+  .ops-layout .metric { padding: 16px; min-height: 118px; }
+  .ops-layout .metric strong { font-size: 30px; }
+  .ops-layout .metric small { font-size: 11px; }
+  .ops-layout .analytics :is(.analytics-filter, .chart-panel, .sales-ranking) { padding: 18px; }
+  .ops-layout .analytics .chart-card.has-ranking { grid-template-columns: minmax(0, 1fr); }
+  .ops-layout .analytics .sales-ranking { border-right: 0; border-bottom: 1px solid var(--ui-line); }
+  .ops-layout .analytics .metric-card { padding: 16px; min-height: 126px; }
+  .ops-layout .workflow-metrics { gap: 10px; }
+  .ops-layout .workflow-metrics > * { padding: 16px; }
+  .ops-layout .workflow-metrics :is(dd, strong) { font-size: 23px; }
+  .ops-layout app-operations-salon .table-grid { gap: 12px; }
+  .ops-layout app-operations-salon .salon-table { padding: 15px; min-height: 170px; gap: 12px; }
+  .ops-layout app-operations-salon .salon-table h3 { font-size: 22px; }
+  .ops-layout app-operations-salon .table-heading { gap: 8px; }
+  .ops-layout :is(.editor-content, .layout-content) { padding: 18px 14px; }
+  .ops-layout .editor-section { padding: 16px; }
+  .ops-layout .order-editor .fields { gap: 16px; }
+  .ops-layout :is(.order-editor > header, .layout-header, .order-editor > footer, .layout-footer) { padding: 18px; }
+  .ops-layout :is(.order-editor, .layout-dialog, .cancel-dialog, .menu-edit-dialog) { border-radius: 16px; }
+  .ops-layout :is(.menu-edit-dialog .workflow-card, .cancel-dialog form) { padding: 22px; }
+  .ops-layout .admin-page.embedded .item-row { padding: 16px; gap: 12px; }
+  .ops-layout .admin-page.embedded .catalog-header { padding: 18px; }
+  .ops-layout .admin-page.embedded .stat-card { padding: 18px; }
+  .ops-layout .admin-page.embedded .stat-card strong { font-size: 27px; }
+  app-operations-panel :is(.ops-layout, .ops-access) :is(input, select, textarea):not([type='checkbox'], [type='radio']) { font-size: 16px; }
+  app-operations-panel .access-form .login-box { padding: 24px; border-radius: 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  app-operations-panel *, app-operations-panel *::before, app-operations-panel *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}

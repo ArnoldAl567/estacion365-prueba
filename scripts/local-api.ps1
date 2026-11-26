@@ -65,8 +65,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'No se pudo preparar el catálogo local.' }
     Push-Location $backendPath
     try {
-        & php -d xdebug.mode=off artisan package:discover --ansi
+        $cachePath = Join-Path $backendPath 'bootstrap/cache'
+        if (!(Test-Path $cachePath)) { New-Item -ItemType Directory -Path $cachePath -Force | Out-Null }
         if (!$envText.Contains('APP_KEY=base64:')) { & php -d xdebug.mode=off artisan key:generate --ansi }
+        if ($LASTEXITCODE -ne 0) { throw 'No se pudo configurar la clave de Laravel.' }
         & php -d xdebug.mode=off artisan migrate --force
         if ($LASTEXITCODE -ne 0) { throw 'No se pudieron aplicar las migraciones.' }
         & php -d xdebug.mode=off artisan db:seed --class=LocalCatalogSeeder --force

@@ -18,5 +18,6 @@ import { LOCAL_OPERATIONS_ENABLED } from './config/local-operations.config';
 })
 export class AppShell {
   readonly isAdminRoute = window.location.pathname.replace(/\/$/, '') === '/panel-administrativo';
-  readonly isOperationsRoute = window.location.pathname.replace(/\/$/, '') === '/administrar' || (LOCAL_OPERATIONS_ENABLED && this.isAdminRoute);
+  readonly isOperationsRoute = /^\/administrar(?:\/|$)/.test(window.location.pathname)
+    || (LOCAL_OPERATIONS_ENABLED && this.isAdminRoute);
 }

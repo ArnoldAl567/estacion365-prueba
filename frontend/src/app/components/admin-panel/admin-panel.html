@@ -123,7 +123,7 @@
                 <article class="item-row" [class.is-inactive]="!row.active" [class.is-selected]="editForm?.item_key === row.item_key">
                   <div class="item-photo">@if (row.image_url) { <img [src]="row.image_url" [alt]="row.name" loading="lazy"> } @else { <span aria-hidden="true">◌</span> }</div>
                   <div class="item-info"><span class="item-category">{{ kindLabel(row) }}</span><h3>{{ row.name }}</h3><span class="item-status" [class.off]="!row.active"><i aria-hidden="true"></i>{{ row.active ? 'Disponible' : 'Agotado' }}</span></div>
-                  <div class="item-side"><strong>@if (row.kind === 'carta') { {{ row.price === null ? 'Consultar' : 'S/ ' + row.price }} } @else { S/ {{ prices().economico }} · {{ prices().ejecutivo }} }</strong><div class="item-actions"><button type="button" class="edit-button" (click)="edit(row)">Editar</button><button type="button" class="availability-button" [disabled]="!authenticated() || busy()" (click)="toggleAvailability(row)" [attr.aria-label]="(row.active ? 'Marcar como agotado: ' : 'Marcar disponible: ') + row.name">{{ row.active ? 'Agotar' : 'Activar' }}</button></div></div>
+                  <div class="item-side"><strong>@if (row.kind === 'carta') { {{ row.price === null ? 'Consultar' : 'S/ ' + row.price }} } @else { S/ {{ prices().economico }} · {{ prices().ejecutivo }} }</strong><div class="item-actions"><button type="button" class="edit-button" (click)="edit(row)">Editar</button><button type="button" class="availability-button" [disabled]="!authenticated() || busy()" (click)="embedded() ? edit(row) : toggleAvailability(row)" [attr.aria-label]="embedded() ? 'Editar disponibilidad de ' + row.name : (row.active ? 'Marcar como agotado: ' : 'Marcar disponible: ') + row.name">{{ embedded() ? 'Disponibilidad' : row.active ? 'Agotar' : 'Activar' }}</button></div></div>
                 </article>
               } @empty {
                 <div class="empty-list">No encontramos platos con ese nombre.</div>
@@ -133,10 +133,17 @@
 
           <aside class="editor-column">
             @if (editForm; as dish) {
+              @if (embedded()) {
+                <app-record-dialog [title]="editorMode === 'create' ? 'Nuevo producto' : 'Editar producto'" [busy]="busy()" (closed)="closeEditor()">
+                  <ng-container [ngTemplateOutlet]="dishEditor" />
+                </app-record-dialog>
+              } @else { <ng-container [ngTemplateOutlet]="dishEditor" /> }
+              <ng-template #dishEditor>
               <section class="editor-card" aria-labelledby="editor-title">
-                <div class="editor-heading"><div><span class="eyebrow">{{ editorMode === 'create' ? 'NUEVO PRODUCTO' : 'EDITAR PRODUCTO' }}</span><h2 id="editor-title">{{ editorMode === 'create' ? (dish.kind === 'entrada' ? 'Agregar entrada' : 'Agregar plato') : dish.name }}</h2></div><button type="button" class="close-button" (click)="closeEditor()" aria-label="Cerrar edición">×</button></div>
+                @if (!embedded()) { <div class="editor-heading"><div><span class="eyebrow">{{ editorMode === 'create' ? 'NUEVO PRODUCTO' : 'EDITAR PRODUCTO' }}</span><h2 id="editor-title">{{ editorMode === 'create' ? (dish.kind === 'entrada' ? 'Agregar entrada' : 'Agregar plato') : dish.name }}</h2></div><button type="button" class="close-button" (click)="closeEditor()" [disabled]="busy()" aria-label="Cerrar edición">×</button></div> }
+                @if (embedded() && error()) { <p class="workflow-error" role="alert">{{ error() }}</p> }
                 <div class="editor-photo">@if (editImagePreview) { <img [src]="editImagePreview" [alt]="dish.name"> } @else { <span>Sin fotografía</span> }</div>
-                <form (ngSubmit)="saveItem()">
+                <form #dishForm="ngForm" (ngSubmit)="dishForm.valid && saveItem()">
                   <label for="dish-photo">Fotografía</label>
                   <input id="dish-photo" name="dish-photo" type="file" accept="image/jpeg,image/png,image/webp" [required]="editorMode === 'create'" (change)="chooseImage($event)">
                   <small class="field-note">JPG, PNG o WebP · máximo 5 MB</small>
@@ -145,25 +152,36 @@
                   @if (dish.kind === 'carta') {
                     <label for="dish-category">Categoría</label>
                     <select id="dish-category" name="dish-category" required [(ngModel)]="dish.category_id">
-                      @for (category of categories; track category.id) { <option [value]="category.id">{{ category.name }}</option> }
+                      @for (category of categories; track category.id) { <option [value]="category.id">{{ categoryLabels.name(category.id, category.name) }}</option> }
                     </select>
                     <label for="dish-price">Precio (S/)</label>
                     <input id="dish-price" name="dish-price" type="number" min="0" max="9999.99" step="0.01" [required]="editorMode === 'create'" [(ngModel)]="dish.price" placeholder="Precio por consultar">
                   } @else {
-                    <p class="field-note daily-price-note">El precio del menú Económico y Ejecutivo se cambia en la tarjeta inferior.</p>
+                    <p class="field-note daily-price-note">El precio del menú Económico y Ejecutivo se cambia desde «Precios por tipo».</p>
                   }
                   <label class="availability-switch"><input type="checkbox" name="dish-active" [(ngModel)]="dish.active"><span>Disponible en la carta</span></label>
                   <button class="primary-button" type="submit" [disabled]="!authenticated() || busy() || (editorMode === 'create' && catalogLimitReached())">{{ busy() ? 'Guardando…' : editorMode === 'create' ? 'Agregar a la carta' : 'Guardar cambios' }} <span aria-hidden="true">→</span></button>
                   @if (!configured) { <p class="field-note">Conecta Neon para habilitar el guardado.</p> }
                 </form>
               </section>
-            } @else {
+              </ng-template>
+            } @else if (!embedded()) {
               <section class="editor-empty"><span aria-hidden="true">✳</span><h2>Selecciona un plato</h2><p>Pulsa «Editar» para cambiar su nombre, foto, precio o disponibilidad.</p></section>
             }
             <section class="price-card" aria-labelledby="prices-title">
               <span class="eyebrow">MENÚ DEL DÍA</span><h2 id="prices-title">Precios por tipo</h2>
               <p>Estos precios se aplican a todos los fondos del día.</p>
-              <form (ngSubmit)="savePrices()"><div class="price-fields"><label>Económico <span>S/</span><input name="economico" type="number" min="0" max="9999.99" step="0.01" required [(ngModel)]="priceForm.economico"></label><label>Ejecutivo <span>S/</span><input name="ejecutivo" type="number" min="0" max="9999.99" step="0.01" required [(ngModel)]="priceForm.ejecutivo"></label></div><button type="submit" [disabled]="!authenticated() || busy()">Actualizar precios</button></form>
+              @if (embedded()) {
+                <p>Económico <strong>S/ {{ prices().economico }}</strong> · Ejecutivo <strong>S/ {{ prices().ejecutivo }}</strong></p>
+                <button type="button" [disabled]="busy()" (click)="priceForm = {economico: prices().economico, ejecutivo: prices().ejecutivo}; error.set(''); editingPrices.set(true)">Editar precios</button>
+                @if (editingPrices()) {
+                  <app-record-dialog title="Editar precios del menú del día" [busy]="busy()" (closed)="editingPrices.set(false)">
+                    @if (error()) { <p class="workflow-error" role="alert">{{ error() }}</p> }
+                    <ng-container [ngTemplateOutlet]="pricesEditor" />
+                  </app-record-dialog>
+                }
+              } @else { <ng-container [ngTemplateOutlet]="pricesEditor" /> }
+              <ng-template #pricesEditor>              <form #pricesForm="ngForm" (ngSubmit)="pricesForm.valid && savePrices()"><div class="price-fields"><label>Económico <span>S/</span><input name="economico" type="number" min="0" max="9999.99" step="0.01" required [(ngModel)]="priceForm.economico"></label><label>Ejecutivo <span>S/</span><input name="ejecutivo" type="number" min="0" max="9999.99" step="0.01" required [(ngModel)]="priceForm.ejecutivo"></label></div><button type="submit" [disabled]="!authenticated() || busy()">{{ embedded() ? 'Guardar precios' : 'Actualizar precios' }}</button></form></ng-template>
             </section>
           </aside>
         </div>

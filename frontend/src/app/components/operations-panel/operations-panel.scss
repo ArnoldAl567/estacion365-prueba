@@ -496,11 +496,11 @@ button.metric:hover {
   font-size: 13px;
 }
 .metric.today {
-  border-color: #193f52;
-  background: linear-gradient(140deg, #16384d, #224e56);
+  border-color: #d2e6d9;
+  background: #eaf4ee;
 }
-.metric.today :is(strong, .metric-heading, svg) { color: #f0faf9; }
-.metric.today small { color: #d1e3e6; }
+.metric.today :is(strong, .metric-heading, svg) { color: #183c45; }
+.metric.today small { color: #385e4f; }
 .ops-card {
   min-width: 0;
   overflow: hidden;

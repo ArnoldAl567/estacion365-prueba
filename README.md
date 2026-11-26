@@ -6,6 +6,11 @@ El proyecto `estacion365-prueba` sirve Angular y la API de Laravel desde un cont
 
 Si la base está vacía, aplica las migraciones de Laravel y carga el catálogo con `LocalCatalogSeeder` antes de abrir el panel. La primera cuenta requiere el código de activación. Las cuentas siguientes se administran desde el panel. Las fotos nuevas de este entorno se guardan en Neon y se sirven con caché desde Laravel.
 
+## Actualizar el entorno de pruebas
+
+Esta versión incorpora las migraciones de inventario, incidencias, turnos de caja y unificación de Cocina. Antes de activar esta versión en el servidor de pruebas, aplica las migraciones pendientes con `php artisan migrate --force` usando exclusivamente la base independiente de pruebas. No ejecutes estas migraciones contra la base de producción de la carta original.
+
+
 Carta pública creada con Angular. Incluye platos a la carta, menú del día, búsqueda, carrito y preparación del pedido por WhatsApp. El panel `/panel-administrativo` permite actualizar el catálogo en PostgreSQL mediante Neon Auth y Data API, sin alojar un servidor Laravel.
 
 ## Estructura del proyecto
@@ -18,7 +23,9 @@ Carta pública creada con Angular. Incluye platos a la carta, menú del día, b�
 
 La versión local incorpora **Angular + Laravel + PostgreSQL** en `/administrar`: pedidos, comandas de cocina, estados, historial y cuentas de administrador o cocina. En localhost, el carrito confirma pedidos directamente en Laravel y permite seguir su preparación. El sitio publicado conserva su funcionamiento actual.
 
-Abre dos terminales en la raíz del proyecto. Ejecuta `npm run api:local` en una y `npm start` en la otra. Entra a `http://127.0.0.1:4201/administrar` y crea el primer administrador si todavía no existe. El catálogo local es una copia independiente de Neon.
+Desde la raíz del proyecto, ejecuta `npm start`. Este comando inicia PostgreSQL y Laravel antes de abrir Angular. Entra a `http://127.0.0.1:4201/administrar` y crea el primer administrador si todavía no existe. El catálogo local es una copia independiente de Neon.
+
+Mantén abierta la terminal de `npm start` mientras usas el sistema. Si Angular ya está abierto y la API devuelve 500 por falta de PostgreSQL, vuelve a ejecutar `npm start` para recuperar la base sin cerrar la carta. Evita iniciar Angular directamente con `ng serve`: ese comando omite la preparación de PostgreSQL y Laravel. `npm run api:local` sigue disponible para iniciar solo la API en otra terminal.
 
 Consulta [la guía del sistema local](backend/README.md) para requisitos, acceso, pruebas, base de datos y respaldo. Esta implementación se está trabajando localmente; no se ha publicado.
 

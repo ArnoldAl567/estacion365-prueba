@@ -46,7 +46,8 @@ class SalonLayout
             abort_unless($revision === $layout['revision'], 409, 'Otra persona cambió el plano. Cierra la edición y vuelve a abrirla.');
             $previous = $this->tables($layout['zones'])->keyBy(fn ($table) => $this->tableKey($table['label']));
             $next = $this->tables($zones);
-            $orders = Order::where('delivery_method', 'table')->whereIn('status', ['pending', 'preparing', 'ready'])
+            $orders = Order::where('delivery_method', 'table')->whereNull('table_closed_at')
+                ->whereIn('status', ['pending', 'preparing', 'ready', 'delivered'])
                 ->whereNotNull('table_label')->orderBy('id')->lockForUpdate()->get();
             $unmapped = $orders->map(fn ($order) => $this->tableKey($order->table_label))
                 ->reject(fn ($key) => $previous->has($key))->flip();
@@ -85,7 +86,7 @@ class SalonLayout
         return ['revision' => (int) $row->revision, 'zones' => json_decode($row->zones, true, flags: JSON_THROW_ON_ERROR)];
     }
 
-    private function tableKey(string $label): string
+    public function tableKey(string $label): string
     {
         $label = trim($label);
         return preg_match('/^(?:mesa\s*|m\s*)?0*(\d+)$/i', $label, $parts)
